@@ -25,7 +25,7 @@ services:
     restart: unless-stopped
 
   manager:
-    image: ${MANAGER_IMAGE:-llagents/manager:latest}
+    image: ${MANAGER_IMAGE:-ghcr.io/llm-to-apps/manager:latest}
     build:
       context: ../../manager
     environment:
