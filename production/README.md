@@ -23,19 +23,19 @@ docker network create --driver overlay --attachable llagents_internal
 Copy the environment example and edit secrets/domains:
 
 ```bash
-cp deploy/production/.env.example deploy/production/.env
+cp production/.env.example production/.env
 ```
 
 Start production services:
 
 ```bash
-docker compose --env-file deploy/production/.env -f deploy/production/docker-compose.yml up -d --build
+make up
 ```
 
-Update the manager image tag from the latest GitHub tag:
+Update the manager to the latest GitHub tag:
 
 ```bash
-deploy/scripts/update-manager-image-tag.sh
+make update
 ```
 
 This expects the manager repo to have release tags such as `v0.1.0`.
@@ -43,13 +43,13 @@ This expects the manager repo to have release tags such as `v0.1.0`.
 For private repos or higher GitHub API rate limits, provide:
 
 ```bash
-GITHUB_TOKEN=github_pat_... deploy/scripts/update-manager-image-tag.sh
+GITHUB_TOKEN=github_pat_... make update
 ```
 
 Check manager health:
 
 ```bash
-docker compose --env-file deploy/production/.env -f deploy/production/docker-compose.yml exec manager wget -qO- http://localhost:8080/health
+docker compose --env-file production/.env -f production/docker-compose.yml exec manager wget -qO- http://localhost:8080/health
 ```
 
 ## Important notes

@@ -26,8 +26,6 @@ services:
 
   manager:
     image: ${MANAGER_IMAGE:-ghcr.io/llm-to-apps/manager}:${MANAGER_IMAGE_TAG:-latest}
-    build:
-      context: ../../manager
     environment:
       PORT: "8080"
       ROOT_DOMAIN: ${ROOT_DOMAIN}
