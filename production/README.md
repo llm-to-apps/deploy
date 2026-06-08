@@ -32,6 +32,20 @@ Start production services:
 docker compose --env-file deploy/production/.env -f deploy/production/docker-compose.yml up -d --build
 ```
 
+Update the manager image tag from the latest GitHub tag:
+
+```bash
+deploy/scripts/update-manager-image-tag.sh
+```
+
+This expects the manager repo to have release tags such as `v0.1.0`.
+
+For private repos or higher GitHub API rate limits, provide:
+
+```bash
+GITHUB_TOKEN=github_pat_... deploy/scripts/update-manager-image-tag.sh
+```
+
 Check manager health:
 
 ```bash
@@ -45,4 +59,3 @@ docker compose --env-file deploy/production/.env -f deploy/production/docker-com
 - User app services should join both `llagents_public` and `llagents_internal`.
 - Traefik uses the Swarm provider and reads labels from Swarm services.
 - Keep `llagents_public` and `llagents_internal` as attachable overlay networks so Compose services and Swarm services can share them.
-
