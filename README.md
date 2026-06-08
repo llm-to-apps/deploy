@@ -16,7 +16,7 @@ Run these commands on the production Docker host:
 
 ```bash
 docker swarm init
-docker network create --driver overlay --attachable llagents_runtime
+make ensure-networks
 ```
 
 Copy the environment example and edit secrets/domains:
@@ -57,7 +57,9 @@ docker compose --env-file .env -f docker-compose.yml exec manager wget -qO- http
 
 - The manager mounts `/var/run/docker.sock`, so treat it as root-level cluster control.
 - Do not expose the manager publicly.
-- User app services join `llagents_runtime`.
+- MySQL runs in `llagents_db`.
+- Traefik and user app services join `llagents_ingress`.
+- Web-facing internal platform services use `llagents_internal`.
 - Traefik uses the Swarm provider and reads labels from Swarm services.
 - Cloudflare terminates TLS, so Traefik only exposes HTTP on port 80.
-- Keep `llagents_runtime` attachable so Compose services and Swarm services can share it.
+- Keep `llagents_db` and `llagents_ingress` attachable so Compose services and Swarm services can share them.

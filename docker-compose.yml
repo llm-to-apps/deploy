@@ -8,13 +8,13 @@ services:
       - --providers.swarm=true
       - --providers.swarm.endpoint=unix:///var/run/docker.sock
       - --providers.swarm.exposedbydefault=false
-      - --providers.swarm.network=${PROJECT_NETWORK_ID:-llagents_runtime}
+      - --providers.swarm.network=${INGRESS_NETWORK_ID:-llagents_ingress}
     ports:
       - "80:80"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
-      - runtime
+      - ingress
     restart: unless-stopped
 
   manager:
@@ -26,14 +26,16 @@ services:
       MYSQL_ROOT_USER: ${MYSQL_ROOT_USER:-root}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       USER_INSTANCE_IMAGE: ${USER_INSTANCE_IMAGE:-llagents/user-instance:latest}
-      PROJECT_NETWORK_ID: ${PROJECT_NETWORK_ID:-llagents_runtime}
+      DB_NETWORK_ID: ${DB_NETWORK_ID:-llagents_db}
+      INGRESS_NETWORK_ID: ${INGRESS_NETWORK_ID:-llagents_ingress}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - runtime
     depends_on:
       - mysql
     restart: unless-stopped
+    networks:
+      - internal
+      - db
 
   mysql:
     image: ${MYSQL_IMAGE:-mysql:8.4}
@@ -43,7 +45,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
-      runtime:
+      db:
         aliases:
           - mysql
     restart: unless-stopped
@@ -52,6 +54,12 @@ volumes:
   mysql-data:
 
 networks:
-  runtime:
-    name: ${PROJECT_NETWORK_ID:-llagents_runtime}
+  db:
+    name: ${DB_NETWORK_ID:-llagents_db}
+    external: true
+  ingress:
+    name: ${INGRESS_NETWORK_ID:-llagents_ingress}
+    external: true
+  internal:
+    name: ${INTERNAL_NETWORK_ID:-llagents_internal}
     external: true
