@@ -1,5 +1,5 @@
-ENV_FILE ?= production/.env
-COMPOSE_FILE ?= production/docker-compose.yml
+ENV_FILE ?= .env
+COMPOSE_FILE ?= docker-compose.yml
 DOCKER_COMPOSE ?= docker compose
 
 .PHONY: update config pull up

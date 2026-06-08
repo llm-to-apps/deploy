@@ -4,8 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-ENV_FILE="${ENV_FILE:-${REPO_ROOT}/production/.env}"
-ENV_EXAMPLE_FILE="${ENV_EXAMPLE_FILE:-${REPO_ROOT}/production/.env.example}"
+ENV_FILE="${ENV_FILE:-${REPO_ROOT}/.env}"
+ENV_EXAMPLE_FILE="${ENV_EXAMPLE_FILE:-${REPO_ROOT}/.env.example}"
 MANAGER_REPO="${MANAGER_REPO:-llm-to-apps/manager}"
 GITHUB_API_URL="${GITHUB_API_URL:-https://api.github.com}"
 TAG_PATTERN="${TAG_PATTERN:-^v?[0-9]+(\\.[0-9]+)*$}"
@@ -18,7 +18,7 @@ Usage: scripts/update-manager-image-tag.sh [options]
 Fetch the latest manager Git tag from GitHub and write it to MANAGER_IMAGE_TAG.
 
 Options:
-  --env-file PATH       Env file to update. Default: production/.env
+  --env-file PATH       Env file to update. Default: .env
   --repo OWNER/REPO     GitHub repo to read tags from. Default: llm-to-apps/manager
   --tag-pattern REGEX   Tag filter regex. Default: ^v?[0-9]+(\\.[0-9]+)*$
   --dry-run             Print the chosen tag without changing files.
