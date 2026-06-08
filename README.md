@@ -26,6 +26,8 @@ Copy the environment example and edit secrets/domains:
 cp .env.example .env
 ```
 
+`MYSQL_ROOT_USER` is used by the manager to connect to MySQL. With the official `mysql` image, keep it as `root` unless you also change the database image/bootstrap.
+
 Start production services:
 
 ```bash

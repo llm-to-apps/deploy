@@ -22,7 +22,9 @@ services:
     environment:
       PORT: "8080"
       ROOT_DOMAIN: ${ROOT_DOMAIN}
-      MYSQL_ADMIN_URL: ${MYSQL_ADMIN_URL}
+      MYSQL_HOST: ${MYSQL_HOST:-mysql}
+      MYSQL_ROOT_USER: ${MYSQL_ROOT_USER:-root}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       USER_INSTANCE_IMAGE: ${USER_INSTANCE_IMAGE:-llagents/user-instance:latest}
       PUBLIC_NETWORK_ID: ${PUBLIC_NETWORK_NAME:-llagents_public}
       INTERNAL_NETWORK_ID: ${INTERNAL_NETWORK_NAME:-llagents_internal}
