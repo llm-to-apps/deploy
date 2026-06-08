@@ -58,4 +58,5 @@ docker compose --env-file .env -f docker-compose.yml exec manager wget -qO- http
 - Do not expose the manager publicly.
 - User app services should join both `llagents_public` and `llagents_internal`.
 - Traefik uses the Swarm provider and reads labels from Swarm services.
+- Cloudflare terminates TLS, so Traefik only exposes HTTP on port 80.
 - Keep `llagents_public` and `llagents_internal` as attachable overlay networks so Compose services and Swarm services can share them.

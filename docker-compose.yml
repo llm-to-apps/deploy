@@ -5,21 +5,14 @@ services:
       - --log.level=INFO
       - --api.dashboard=false
       - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
       - --providers.swarm=true
       - --providers.swarm.endpoint=unix:///var/run/docker.sock
       - --providers.swarm.exposedbydefault=false
       - --providers.swarm.network=${PUBLIC_NETWORK_NAME:-llagents_public}
-      - --certificatesresolvers.letsencrypt.acme.email=${LETSENCRYPT_EMAIL}
-      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
-      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - traefik-letsencrypt:/letsencrypt
     networks:
       - public
     restart: unless-stopped
@@ -55,7 +48,6 @@ services:
     restart: unless-stopped
 
 volumes:
-  traefik-letsencrypt:
   mysql-data:
 
 networks:
