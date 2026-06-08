@@ -13,7 +13,7 @@ DRY_RUN=false
 
 usage() {
   cat <<USAGE
-Usage: scripts/update-manager-image-tag.sh [options]
+Usage: ./update.sh [options]
 
 Fetch the latest manager Git tag from GitHub and write it to MANAGER_IMAGE_TAG.
 
