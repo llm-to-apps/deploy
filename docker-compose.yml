@@ -46,6 +46,7 @@ services:
       AGENT_URL: http://agent:4111
       APP_ROOT_DOMAIN: ${APP_ROOT_DOMAIN}
       REDIS_URL: redis://redis:6379
+      AGENT_MEMORY_DEBUG: ${AGENT_MEMORY_DEBUG:-false}
     depends_on:
       - manager
       - postgres
