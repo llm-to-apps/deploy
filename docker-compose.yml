@@ -37,6 +37,47 @@ services:
       - internal
       - db
 
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}
+      DATABASE_URL: mysql://${MYSQL_ROOT_USER:-root}:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-llagents_platform}
+      MANAGER_URL: http://manager:8080
+      APP_ROOT_DOMAIN: ${APP_ROOT_DOMAIN}
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - manager
+      - mysql
+      - redis
+    restart: unless-stopped
+    networks:
+      - internal
+      - db
+      - ingress
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.web.rule=Host(`${WEB_DOMAIN}`)
+        - traefik.http.routers.web.entrypoints=web
+        - traefik.http.services.web.loadbalancer.server.port=3000
+
+  worker:
+    image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
+    command: npm run worker
+    environment:
+      DATABASE_URL: mysql://${MYSQL_ROOT_USER:-root}:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-llagents_platform}
+      MANAGER_URL: http://manager:8080
+      REDIS_URL: redis://redis:6379
+      DEPLOY_WORKER_CONCURRENCY: ${DEPLOY_WORKER_CONCURRENCY:-2}
+    depends_on:
+      - manager
+      - mysql
+      - redis
+    restart: unless-stopped
+    networks:
+      - internal
+      - db
+
   mysql:
     image: ${MYSQL_IMAGE:-mysql:8.4}
     environment:
@@ -50,8 +91,17 @@ services:
           - mysql
     restart: unless-stopped
 
+  redis:
+    image: ${REDIS_IMAGE:-redis:7.4-alpine}
+    volumes:
+      - redis-data:/data
+    networks:
+      - internal
+    restart: unless-stopped
+
 volumes:
   mysql-data:
+  redis-data:
 
 networks:
   db:
