@@ -41,13 +41,14 @@ services:
     image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
     environment:
       AUTH_SECRET: ${AUTH_SECRET}
-      DATABASE_URL: mysql://${MYSQL_ROOT_USER:-root}:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-llagents_platform}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-llagents}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-llagents_platform}
       MANAGER_URL: http://manager:8080
+      AGENT_URL: http://agent:4111
       APP_ROOT_DOMAIN: ${APP_ROOT_DOMAIN}
       REDIS_URL: redis://redis:6379
     depends_on:
       - manager
-      - mysql
+      - postgres
       - redis
     restart: unless-stopped
     networks:
@@ -65,24 +66,55 @@ services:
     image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
     command: npm run worker:start
     environment:
-      DATABASE_URL: mysql://${MYSQL_ROOT_USER:-root}:${MYSQL_ROOT_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-llagents_platform}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-llagents}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-llagents_platform}
       MANAGER_URL: http://manager:8080
       REDIS_URL: redis://redis:6379
       DEPLOY_WORKER_CONCURRENCY: ${DEPLOY_WORKER_CONCURRENCY:-2}
     depends_on:
       - manager
-      - mysql
+      - postgres
       - redis
     restart: unless-stopped
     networks:
       - internal
       - db
 
+  agent:
+    image: ${AGENT_IMAGE:-ghcr.io/llm-to-apps/agent}:${AGENT_IMAGE_TAG:-latest}
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL:-https://${WEB_DOMAIN}}
+      OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-LLM to Apps}
+      AGENT_MODEL: ${AGENT_MODEL:-openai/gpt-5-mini}
+      MANAGER_URL: http://manager:8080
+      DATABASE_URL: postgresql://${POSTGRES_USER:-llagents}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-llagents_platform}
+    depends_on:
+      - postgres
+      - manager
+    restart: unless-stopped
+    networks:
+      - internal
+      - db
+
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE:-llagents_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-llagents}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      db:
+        aliases:
+          - postgres
+    restart: unless-stopped
+
   mysql:
     image: ${MYSQL_IMAGE:-mysql:8.4}
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE: ${MYSQL_DATABASE:-llagents_platform}
     volumes:
       - mysql-data:/var/lib/mysql
     networks:
@@ -100,6 +132,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  postgres-data:
   mysql-data:
   redis-data:
 

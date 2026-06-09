@@ -6,7 +6,11 @@ The Compose stack starts:
 
 - Traefik reverse proxy
 - LLAgents manager
-- MySQL
+- LLAgents web and worker
+- LLAgents agent
+- PostgreSQL for platform data and Mastra memory
+- MySQL for customer application databases
+- Redis for queues
 
 The manager then creates user application instances as Docker Swarm services through the Docker Engine API.
 
@@ -26,6 +30,7 @@ cp .env.example .env
 ```
 
 `MYSQL_ROOT_USER` is used by the manager to connect to MySQL. With the official `mysql` image, keep it as `root` unless you also change the database image/bootstrap.
+`POSTGRES_*` is used by web, worker, and agent for platform state and Mastra Memory.
 
 Start production services:
 
@@ -57,7 +62,9 @@ docker compose --env-file .env -f docker-compose.yml exec manager wget -qO- http
 
 - The manager mounts `/var/run/docker.sock`, so treat it as root-level cluster control.
 - Do not expose the manager publicly.
-- MySQL runs in `llagents_db`.
+- PostgreSQL and MySQL run in `llagents_db`.
+- MySQL is reserved for customer app databases provisioned by the manager.
+- PostgreSQL stores platform data and Mastra Memory.
 - Traefik and user app services join `llagents_ingress`.
 - Web-facing internal platform services use `llagents_internal`.
 - Traefik uses the Swarm provider and reads labels from Swarm services.

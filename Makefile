@@ -6,8 +6,8 @@ DOCKER_COMPOSE ?= docker compose
 
 update:
 	./update.sh --env-file $(ENV_FILE)
-	$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(COMPOSE_FILE) pull manager web worker
-	$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d manager web worker
+	$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(COMPOSE_FILE) pull manager web worker agent
+	$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(COMPOSE_FILE) up -d manager web worker agent
 
 config:
 	$(DOCKER_COMPOSE) --env-file $(ENV_FILE) -f $(COMPOSE_FILE) config
