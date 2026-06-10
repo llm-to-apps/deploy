@@ -35,7 +35,9 @@ services:
     restart: unless-stopped
     networks:
       - internal
-      - db
+      db:
+        aliases:
+          - forgejo
 
   web:
     image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
@@ -47,10 +49,15 @@ services:
       APP_ROOT_DOMAIN: ${APP_ROOT_DOMAIN}
       REDIS_URL: redis://redis:6379
       AGENT_MEMORY_DEBUG: ${AGENT_MEMORY_DEBUG:-false}
+      FORGEJO_URL: ${FORGEJO_URL:-http://forgejo:3000}
+      FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo:3000}
+      FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
     depends_on:
       - manager
       - postgres
       - redis
+      - forgejo
     restart: unless-stopped
     networks:
       - internal
@@ -71,10 +78,15 @@ services:
       MANAGER_URL: http://manager:8080
       REDIS_URL: redis://redis:6379
       DEPLOY_WORKER_CONCURRENCY: ${DEPLOY_WORKER_CONCURRENCY:-2}
+      FORGEJO_URL: ${FORGEJO_URL:-http://forgejo:3000}
+      FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo:3000}
+      FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
     depends_on:
       - manager
       - postgres
       - redis
+      - forgejo
     restart: unless-stopped
     networks:
       - internal
@@ -99,14 +111,49 @@ services:
       - internal
       - db
 
+  forgejo:
+    image: ${FORGEJO_IMAGE:-codeberg.org/forgejo/forgejo:15}
+    entrypoint: ["/usr/local/bin/forgejo-bootstrap.sh"]
+    environment:
+      USER_UID: ${FORGEJO_USER_UID:-1000}
+      USER_GID: ${FORGEJO_USER_GID:-1000}
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: postgres:5432
+      FORGEJO__database__NAME: ${FORGEJO_POSTGRES_DATABASE:-forgejo}
+      FORGEJO__database__USER: ${FORGEJO_POSTGRES_USER:-forgejo}
+      FORGEJO__database__PASSWD: ${FORGEJO_POSTGRES_PASSWORD}
+      FORGEJO__server__ROOT_URL: ${FORGEJO_ROOT_URL}
+      FORGEJO__server__SSH_DOMAIN: ${FORGEJO_SSH_DOMAIN}
+      FORGEJO__server__SSH_PORT: ${FORGEJO_SSH_PORT:-2222}
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__security__SECRET_KEY: ${FORGEJO_SECRET_KEY}
+      FORGEJO__security__INTERNAL_TOKEN: ${FORGEJO_INTERNAL_TOKEN}
+      FORGEJO__service__DISABLE_REGISTRATION: ${FORGEJO_DISABLE_REGISTRATION:-false}
+      FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+      FORGEJO_ADMIN_EMAIL: ${FORGEJO_ADMIN_EMAIL:-root@example.local}
+    volumes:
+      - forgejo-data:/data
+      - ../docker/forgejo/bootstrap.sh:/usr/local/bin/forgejo-bootstrap.sh:ro
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    networks:
+      - internal
+      - db
+
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:17-alpine}
     environment:
       POSTGRES_DB: ${POSTGRES_DATABASE:-llagents_platform}
       POSTGRES_USER: ${POSTGRES_USER:-llagents}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FORGEJO_POSTGRES_DATABASE: ${FORGEJO_POSTGRES_DATABASE:-forgejo}
+      FORGEJO_POSTGRES_USER: ${FORGEJO_POSTGRES_USER:-forgejo}
+      FORGEJO_POSTGRES_PASSWORD: ${FORGEJO_POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+      - ../docker/postgres/init-forgejo-db.sh:/docker-entrypoint-initdb.d/20-forgejo-db.sh:ro
     networks:
       db:
         aliases:
@@ -134,6 +181,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  forgejo-data:
   postgres-data:
   mysql-data:
   redis-data:
