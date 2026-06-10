@@ -13,6 +13,8 @@ services:
       - "80:80"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    cpus: ${TRAEFIK_CPUS:-0.50}
+    mem_limit: ${TRAEFIK_MEMORY_LIMIT:-512m}
     networks:
       - ingress
     restart: unless-stopped
@@ -28,16 +30,20 @@ services:
       USER_INSTANCE_IMAGE: ${USER_INSTANCE_IMAGE:-llagents/user-instance:latest}
       DB_NETWORK_ID: ${DB_NETWORK_ID:-llagents_db}
       INGRESS_NETWORK_ID: ${INGRESS_NETWORK_ID:-llagents_ingress}
+      PROJECT_MEMORY_RESERVATION_MB: ${PROJECT_MEMORY_RESERVATION_MB:-128}
+      PROJECT_MEMORY_LIMIT_MB: ${PROJECT_MEMORY_LIMIT_MB:-768}
+      PROJECT_CPU_RESERVATION: ${PROJECT_CPU_RESERVATION:-0.05}
+      PROJECT_CPU_LIMIT: ${PROJECT_CPU_LIMIT:-1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    cpus: ${MANAGER_CPUS:-0.50}
+    mem_limit: ${MANAGER_MEMORY_LIMIT:-512m}
     depends_on:
       - mysql
     restart: unless-stopped
     networks:
       - internal
-      db:
-        aliases:
-          - forgejo
+      - db
 
   web:
     image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
@@ -53,6 +59,8 @@ services:
       FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo:3000}
       FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
       FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+    cpus: ${WEB_CPUS:-1.00}
+    mem_limit: ${WEB_MEMORY_LIMIT:-1024m}
     depends_on:
       - manager
       - postgres
@@ -82,6 +90,8 @@ services:
       FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo:3000}
       FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
       FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+    cpus: ${WORKER_CPUS:-1.00}
+    mem_limit: ${WORKER_MEMORY_LIMIT:-1024m}
     depends_on:
       - manager
       - postgres
@@ -103,6 +113,8 @@ services:
       MANAGER_URL: http://manager:8080
       DATABASE_URL: postgresql://${POSTGRES_USER:-llagents}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-llagents_platform}
       MASTRA_DATABASE_SCHEMA: ${MASTRA_DATABASE_SCHEMA:-mastra}
+    cpus: ${AGENT_CPUS:-1.00}
+    mem_limit: ${AGENT_MEMORY_LIMIT:-1024m}
     depends_on:
       - postgres
       - manager
@@ -135,12 +147,16 @@ services:
     volumes:
       - forgejo-data:/data
       - ../docker/forgejo/bootstrap.sh:/usr/local/bin/forgejo-bootstrap.sh:ro
+    cpus: ${FORGEJO_CPUS:-1.00}
+    mem_limit: ${FORGEJO_MEMORY_LIMIT:-1024m}
     depends_on:
       - postgres
     restart: unless-stopped
     networks:
-      - internal
-      - db
+      internal:
+      db:
+        aliases:
+          - forgejo
 
   postgres:
     image: ${POSTGRES_IMAGE:-postgres:17-alpine}
@@ -154,6 +170,8 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ../docker/postgres/init-forgejo-db.sh:/docker-entrypoint-initdb.d/20-forgejo-db.sh:ro
+    cpus: ${POSTGRES_CPUS:-2.00}
+    mem_limit: ${POSTGRES_MEMORY_LIMIT:-2048m}
     networks:
       db:
         aliases:
@@ -166,6 +184,8 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:
       - mysql-data:/var/lib/mysql
+    cpus: ${MYSQL_CPUS:-2.00}
+    mem_limit: ${MYSQL_MEMORY_LIMIT:-2048m}
     networks:
       db:
         aliases:
@@ -176,6 +196,8 @@ services:
     image: ${REDIS_IMAGE:-redis:7.4-alpine}
     volumes:
       - redis-data:/data
+    cpus: ${REDIS_CPUS:-0.50}
+    mem_limit: ${REDIS_MEMORY_LIMIT:-512m}
     networks:
       - internal
     restart: unless-stopped
