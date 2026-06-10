@@ -86,6 +86,7 @@ services:
       MANAGER_URL: http://manager:8080
       REDIS_URL: redis://redis:6379
       DEPLOY_WORKER_CONCURRENCY: ${DEPLOY_WORKER_CONCURRENCY:-2}
+      APP_READY_BASE_URL: ${APP_READY_BASE_URL:-http://traefik}
       FORGEJO_URL: ${FORGEJO_URL:-http://forgejo:3000}
       FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo:3000}
       FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
@@ -101,6 +102,7 @@ services:
     networks:
       - internal
       - db
+      - ingress
 
   agent:
     image: ${AGENT_IMAGE:-ghcr.io/llm-to-apps/agent}:${AGENT_IMAGE_TAG:-latest}
