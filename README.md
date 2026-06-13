@@ -45,6 +45,8 @@ Install local deploy configuration files from examples and validate the stack:
 ```
 
 Then edit secrets/domains in `deploy/env/*.env` before starting services.
+`install.sh` generates local passwords and tokens only when values are empty or still use `change-me...` placeholders. Existing values are left untouched.
+If the PostgreSQL service is already running, `install.sh` also ensures the platform and Forgejo databases exist. On a fresh host they are created by the stack on first `make up`.
 
 `MYSQL_ROOT_USER` is used by the manager to connect to MySQL. With the official `mysql` image, keep it as `root` unless you also change the database image/bootstrap.
 `POSTGRES_*` is used by web, worker, and agent for platform state and Mastra Memory.
