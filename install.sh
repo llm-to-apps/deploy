@@ -9,6 +9,8 @@ STACK_FILES="${STACK_FILES:-stack/00-foundation.yml stack/10-db.yml stack/20-sto
 STACK_NAME="${STACK_NAME:-os7}"
 POSTGRES_SERVICE="${STACK_NAME}_postgres"
 POSTGRES_READY_TIMEOUT_SECONDS="${POSTGRES_READY_TIMEOUT_SECONDS:-120}"
+DEPLOY_USER="${DEPLOY_USER:-deploy}"
+DEPLOY_GROUP="${DEPLOY_GROUP:-devops}"
 
 usage() {
   cat <<USAGE
@@ -23,9 +25,33 @@ Environment:
   ENV_FILES     Space-separated env files to load.
   STACK_FILES   Space-separated stack files to validate.
   STACK_NAME    Docker Swarm stack name. Default: os7.
+  DEPLOY_USER   Server deploy user to create. Default: deploy.
+  DEPLOY_GROUP  Server deploy group to create. Default: devops.
   POSTGRES_READY_TIMEOUT_SECONDS
                 Seconds to wait for PostgreSQL readiness. Default: 120.
 USAGE
+}
+
+require_root_access() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    return
+  fi
+
+  if ! command -v sudo >/dev/null 2>&1; then
+    echo "Root privileges or sudo are required to create the deploy user." >&2
+    exit 1
+  fi
+
+  sudo -v
+}
+
+as_root() {
+  if [[ "${EUID}" -eq 0 ]]; then
+    "$@"
+    return
+  fi
+
+  sudo "$@"
 }
 
 random_secret() {
@@ -101,6 +127,60 @@ generate_secrets() {
   ensure_secret env/20-storage.env FORGEJO_INTERNAL_TOKEN
   ensure_secret env/20-storage.env FORGEJO_ADMIN_PASSWORD
   ensure_secret env/30-platform.env AUTH_SECRET
+}
+
+ensure_deploy_user() {
+  local sudoers_file="/etc/sudoers.d/os7-${DEPLOY_USER}"
+  local sudoers_rule="%${DEPLOY_GROUP} ALL=(ALL) NOPASSWD:ALL"
+  local current_shell
+
+  require_root_access
+
+  if getent group "${DEPLOY_GROUP}" >/dev/null; then
+    echo "Group ${DEPLOY_GROUP} already exists."
+  else
+    as_root groupadd "${DEPLOY_GROUP}"
+    echo "Created group ${DEPLOY_GROUP}."
+  fi
+
+  if id -u "${DEPLOY_USER}" >/dev/null 2>&1; then
+    echo "User ${DEPLOY_USER} already exists."
+  else
+    as_root useradd --create-home --shell /bin/bash --gid "${DEPLOY_GROUP}" "${DEPLOY_USER}"
+    echo "Created user ${DEPLOY_USER}."
+  fi
+
+  if id -nG "${DEPLOY_USER}" | tr ' ' '\n' | grep -qx "${DEPLOY_GROUP}"; then
+    echo "User ${DEPLOY_USER} is already in group ${DEPLOY_GROUP}."
+  else
+    as_root usermod --append --groups "${DEPLOY_GROUP}" "${DEPLOY_USER}"
+    echo "Added user ${DEPLOY_USER} to group ${DEPLOY_GROUP}."
+  fi
+
+  current_shell="$(getent passwd "${DEPLOY_USER}" | cut -d ':' -f 7)"
+  if [[ "${current_shell}" != "/bin/bash" ]]; then
+    as_root usermod --shell /bin/bash "${DEPLOY_USER}"
+    echo "Set /bin/bash shell for user ${DEPLOY_USER}."
+  fi
+
+  if [[ -f "${sudoers_file}" ]] && as_root grep -qxF "${sudoers_rule}" "${sudoers_file}"; then
+    echo "Sudo rights for group ${DEPLOY_GROUP} are already configured."
+    return
+  fi
+
+  local tmp
+  tmp="$(mktemp)"
+  printf '%s\n' "${sudoers_rule}" > "${tmp}"
+
+  if ! as_root visudo -cf "${tmp}" >/dev/null; then
+    rm -f "${tmp}"
+    echo "Generated sudoers rule is invalid." >&2
+    exit 1
+  fi
+
+  as_root install -m 0440 -o root -g root "${tmp}" "${sudoers_file}"
+  rm -f "${tmp}"
+  echo "Configured passwordless sudo for group ${DEPLOY_GROUP}."
 }
 
 postgres_container_id() {
@@ -218,6 +298,8 @@ if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required before installing deploy configuration." >&2
   exit 1
 fi
+
+ensure_deploy_user
 
 swarm_state="$(docker info --format '{{.Swarm.LocalNodeState}}' 2>/dev/null || true)"
 if [[ "${swarm_state}" != "active" ]]; then

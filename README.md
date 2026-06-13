@@ -44,6 +44,15 @@ Install local deploy configuration files from examples and validate the stack:
 ./install.sh
 ```
 
+`install.sh` also prepares the server deploy identity:
+
+- creates the `devops` group when it is missing
+- creates the `deploy` user when it is missing
+- adds `deploy` to `devops`
+- grants passwordless sudo to the `devops` group through `/etc/sudoers.d/os7-deploy`
+
+Override the defaults with `DEPLOY_USER=...` and `DEPLOY_GROUP=...` when needed.
+
 If database services are not initialized yet, start only the foundation and database stack:
 
 ```bash
