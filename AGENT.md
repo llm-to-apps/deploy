@@ -3,6 +3,7 @@
 - Do not invent missing infrastructure, image names, domains, credentials, or deployment steps.
 - Do not overengineer the deploy flow. Prefer the smallest change that matches the existing Makefile, env files, and stack layout.
 - Do not build images, rewrite services, or add new moving parts unless the architect explicitly asks for it.
+- Production stack images must use pinned tags from `env/release.env`. Do not deploy platform services with `latest`; use `make update`/`update.sh` to resolve and write `sha-*` tags.
 - Production HTTP services are expected to listen on port 80. Do not change stack service ports or Traefik service ports without explicit architect approval.
 - If a command fails, read the exact error and verify the current state before changing anything.
 - If the next step is unclear, risky, or depends on unavailable access, stop and ask the architect for advice.

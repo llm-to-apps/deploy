@@ -94,11 +94,16 @@ make update
 ```
 
 `make update` runs `update.sh`, pulls images, and redeploys the stack.
+Use this path for normal production delivery so service images stay pinned.
 
 `update.sh` does not use `latest` for platform services. It resolves the latest
 successful `push` workflow on `main` for each service repository, verifies that
 the matching GHCR tag exists, and writes pinned `sha-*` tags to
 `env/release.env`.
+
+Do not run `docker stack deploy` directly without loading `env/release.env`; the
+stack defaults can fall back to `latest`. Use `make up` when redeploying the
+current pinned release without changing tags.
 
 Current tag keys managed by `update.sh`:
 
@@ -155,6 +160,8 @@ curl -I http://127.0.0.1/ -H 'Host: git.os7.dev'
 - Other services should be changed carefully if zero-downtime rollout is needed.
 - Do not manually build production images on the server.
 - Do not hand-edit image tags for normal deploys. Use `make update`.
+- Never deploy platform services with `latest` in production. Keep
+  `env/release.env` pinned to explicit `sha-*` tags.
 - Do not change Traefik service ports away from `80`.
 - If an image is missing, fix CI/CD for that repository and wait for GHCR.
 - If deploy behavior is unclear or risky, stop and ask the architect.

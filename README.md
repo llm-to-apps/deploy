@@ -88,6 +88,8 @@ make update
 ```
 
 This updates the configured image tags and redeploys the Swarm stack.
+Production images must stay pinned to explicit `sha-*` tags in `env/release.env`;
+do not deploy platform services with `latest`.
 
 For private repos or higher GitHub API rate limits, provide:
 
