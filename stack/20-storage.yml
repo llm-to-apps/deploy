@@ -28,10 +28,16 @@ services:
       - NET_BIND_SERVICE
     networks:
       internal:
+      ingress:
       db:
         aliases:
           - forgejo
     deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.forgejo.rule=Host(`${FORGEJO_SSH_DOMAIN}`)
+        - traefik.http.routers.forgejo.entrypoints=web
+        - traefik.http.services.forgejo.loadbalancer.server.port=80
       restart_policy:
         condition: any
       resources:

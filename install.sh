@@ -13,6 +13,7 @@ POSTGRES_READY_TIMEOUT_SECONDS="${POSTGRES_READY_TIMEOUT_SECONDS:-120}"
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-devops}"
 POSTGRES_INIT_SCRIPT="${POSTGRES_INIT_SCRIPT:-${DEPLOY_ROOT}/docker/postgres/init-forgejo-db.sh}"
+FORGEJO_BOOTSTRAP_SCRIPT="${FORGEJO_BOOTSTRAP_SCRIPT:-${DEPLOY_ROOT}/docker/forgejo/bootstrap.sh}"
 
 usage() {
   cat <<USAGE
@@ -32,6 +33,9 @@ Environment:
   POSTGRES_INIT_SCRIPT
                 Host path mounted into PostgreSQL for one-time Forgejo DB
                 bootstrap. Default: ../docker/postgres/init-forgejo-db.sh.
+  FORGEJO_BOOTSTRAP_SCRIPT
+                Host path mounted into Forgejo for startup admin bootstrap.
+                Default: ../docker/forgejo/bootstrap.sh.
   POSTGRES_READY_TIMEOUT_SECONDS
                 Seconds to wait for PostgreSQL readiness. Default: 120.
 USAGE
@@ -192,6 +196,51 @@ SCRIPT
   as_root install -m 0755 -o root -g root "${tmp}" "${POSTGRES_INIT_SCRIPT}"
   rm -f "${tmp}"
   echo "Created PostgreSQL init script at ${POSTGRES_INIT_SCRIPT}."
+}
+
+ensure_forgejo_bootstrap_script() {
+  local bootstrap_dir
+  local tmp
+
+  bootstrap_dir="$(dirname "${FORGEJO_BOOTSTRAP_SCRIPT}")"
+  require_root_access
+
+  if [[ -f "${FORGEJO_BOOTSTRAP_SCRIPT}" ]]; then
+    echo "Forgejo bootstrap script already exists at ${FORGEJO_BOOTSTRAP_SCRIPT}."
+    return
+  fi
+
+  as_root mkdir -p "${bootstrap_dir}"
+
+  tmp="$(mktemp)"
+  cat > "${tmp}" <<'SCRIPT'
+#!/usr/bin/env sh
+set -eu
+
+create_admin() {
+  tries=0
+  while [ "${tries}" -lt 60 ]; do
+    if forgejo admin user list >/dev/null 2>&1; then
+      forgejo admin user create \
+        --admin \
+        --username "${FORGEJO_ADMIN_USER:-root}" \
+        --password "${FORGEJO_ADMIN_PASSWORD}" \
+        --email "${FORGEJO_ADMIN_EMAIL:-root@example.local}" >/dev/null 2>&1 || true
+      return 0
+    fi
+
+    tries=$((tries + 1))
+    sleep 2
+  done
+}
+
+create_admin &
+exec /usr/bin/entrypoint "$@"
+SCRIPT
+
+  as_root install -m 0755 -o root -g root "${tmp}" "${FORGEJO_BOOTSTRAP_SCRIPT}"
+  rm -f "${tmp}"
+  echo "Created Forgejo bootstrap script at ${FORGEJO_BOOTSTRAP_SCRIPT}."
 }
 
 ensure_deploy_user() {
@@ -386,6 +435,7 @@ done
 
 generate_secrets
 ensure_postgres_init_script
+ensure_forgejo_bootstrap_script
 
 set -a
 for file in ${ENV_FILES}; do
