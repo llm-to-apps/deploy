@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 ENV_FILE="${ENV_FILE:-${REPO_ROOT}/env/release.env}"
 ENV_EXAMPLE_FILE="${ENV_EXAMPLE_FILE:-${REPO_ROOT}/env/release.env.example}"
-MANAGER_REPO="${MANAGER_REPO:-os7/manager}"
+MANAGER_REPO="${MANAGER_REPO:-llm-to-apps/manager}"
 GITHUB_API_URL="${GITHUB_API_URL:-https://api.github.com}"
 TAG_PATTERN="${TAG_PATTERN:-^v?[0-9]+(\\.[0-9]+)*$}"
 DRY_RUN=false
@@ -22,7 +22,7 @@ Options:
   --env-example-file PATH
                         Env example file to copy when --env-file does not exist.
                         Default: env/release.env.example
-  --repo OWNER/REPO     GitHub repo to read tags from. Default: os7/manager
+  --repo OWNER/REPO     GitHub repo to read tags from. Default: llm-to-apps/manager
   --tag-pattern REGEX   Tag filter regex. Default: ^v?[0-9]+(\\.[0-9]+)*$
   --dry-run             Print the chosen tag without changing files.
   -h, --help            Show this help.

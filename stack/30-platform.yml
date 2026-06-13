@@ -24,13 +24,13 @@ services:
           memory: ${TRAEFIK_MEMORY_LIMIT:-512m}
 
   manager:
-    image: ${MANAGER_IMAGE:-ghcr.io/os7/manager}:${MANAGER_IMAGE_TAG:-latest}
+    image: ${MANAGER_IMAGE:-ghcr.io/llm-to-apps/manager}:${MANAGER_IMAGE_TAG:-latest}
     environment:
       PORT: "80"
       MYSQL_HOST: ${MYSQL_HOST:-mysql}
       MYSQL_ROOT_USER: ${MYSQL_ROOT_USER:-root}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      USER_INSTANCE_IMAGE: ${USER_INSTANCE_IMAGE:-os7/user-instance:latest}
+      USER_INSTANCE_IMAGE: ${USER_INSTANCE_IMAGE:-ghcr.io/llm-to-apps/user-instance:latest}
       STACK_NAME: ${STACK_NAME:-os7}
       PROJECT_MEMORY_RESERVATION_MB: ${PROJECT_MEMORY_RESERVATION_MB:-128}
       PROJECT_MEMORY_LIMIT_MB: ${PROJECT_MEMORY_LIMIT_MB:-768}
@@ -50,7 +50,7 @@ services:
           memory: ${MANAGER_MEMORY_LIMIT:-512m}
 
   site:
-    image: ${SITE_IMAGE:-ghcr.io/os7/site}:${SITE_IMAGE_TAG:-latest}
+    image: ${SITE_IMAGE:-ghcr.io/llm-to-apps/site}:${SITE_IMAGE_TAG:-latest}
     networks:
       - ingress
     deploy:
@@ -67,7 +67,7 @@ services:
           memory: ${SITE_MEMORY_LIMIT:-512m}
 
   web:
-    image: ${WEB_IMAGE:-ghcr.io/os7/web}:${WEB_IMAGE_TAG:-latest}
+    image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
     environment:
       AUTH_SECRET: ${AUTH_SECRET}
       DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
@@ -103,7 +103,7 @@ services:
           memory: ${WEB_MEMORY_LIMIT:-1024m}
 
   worker:
-    image: ${WEB_IMAGE:-ghcr.io/os7/web}:${WEB_IMAGE_TAG:-latest}
+    image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
     command: npm run worker:start
     stop_grace_period: ${WORKER_STOP_GRACE_PERIOD:-10m}
     environment:
@@ -140,7 +140,7 @@ services:
           memory: ${WORKER_MEMORY_LIMIT:-1024m}
 
   agent:
-    image: ${AGENT_IMAGE:-ghcr.io/os7/agent}:${AGENT_IMAGE_TAG:-latest}
+    image: ${AGENT_IMAGE:-ghcr.io/llm-to-apps/agent}:${AGENT_IMAGE_TAG:-latest}
     stop_grace_period: ${AGENT_STOP_GRACE_PERIOD:-10m}
     environment:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
