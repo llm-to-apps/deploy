@@ -8,20 +8,23 @@ ENV_FILES="${ENV_FILES:-env/release.env env/10-db.env env/20-storage.env env/30-
 STACK_FILES="${STACK_FILES:-stack/00-foundation.yml stack/10-db.yml stack/20-storage.yml stack/30-platform.yml}"
 STACK_NAME="${STACK_NAME:-os7}"
 POSTGRES_SERVICE="${STACK_NAME}_postgres"
+POSTGRES_READY_TIMEOUT_SECONDS="${POSTGRES_READY_TIMEOUT_SECONDS:-120}"
 
 usage() {
   cat <<USAGE
 Usage: ./install.sh
 
 Create missing deploy env files from examples, ensure Docker Swarm is active,
-generate local secrets when placeholders are still present, create databases
-when the PostgreSQL service is already running, and validate the production
-stack configuration.
+generate local secrets when placeholders are still present, require initialized
+database services, create missing databases, and validate the production stack
+configuration.
 
 Environment:
   ENV_FILES     Space-separated env files to load.
   STACK_FILES   Space-separated stack files to validate.
   STACK_NAME    Docker Swarm stack name. Default: os7.
+  POSTGRES_READY_TIMEOUT_SECONDS
+                Seconds to wait for PostgreSQL readiness. Default: 120.
 USAGE
 }
 
@@ -107,6 +110,49 @@ postgres_container_id() {
     | head -n 1
 }
 
+require_postgres_service() {
+  if docker service inspect "${POSTGRES_SERVICE}" >/dev/null 2>&1; then
+    return
+  fi
+
+  cat >&2 <<MSG
+Database services are not initialized yet.
+
+Run:
+  make init
+
+Then re-run:
+  ./install.sh
+MSG
+  exit 2
+}
+
+wait_for_postgres() {
+  local container_id=""
+  local deadline=$((SECONDS + POSTGRES_READY_TIMEOUT_SECONDS))
+
+  while (( SECONDS < deadline )); do
+    container_id="$(postgres_container_id)"
+
+    if [[ -n "${container_id}" ]] &&
+      docker exec "${container_id}" pg_isready --username "${POSTGRES_USER:-os7}" --dbname postgres >/dev/null 2>&1; then
+      printf '%s\n' "${container_id}"
+      return
+    fi
+
+    sleep 2
+  done
+
+  cat >&2 <<MSG
+PostgreSQL service exists, but it did not become ready within ${POSTGRES_READY_TIMEOUT_SECONDS}s.
+
+Check:
+  docker service ps ${POSTGRES_SERVICE}
+  docker service logs ${POSTGRES_SERVICE}
+MSG
+  exit 1
+}
+
 sql_literal() {
   printf "%s" "$1" | sed "s/'/''/g"
 }
@@ -118,17 +164,8 @@ sql_identifier() {
 ensure_postgres_databases() {
   local container_id
 
-  if ! docker service inspect "${POSTGRES_SERVICE}" >/dev/null 2>&1; then
-    echo "PostgreSQL service is not running yet; databases will be created on first make up."
-    return
-  fi
-
-  container_id="$(postgres_container_id)"
-
-  if [[ -z "${container_id}" ]]; then
-    echo "PostgreSQL service exists but no local container is running; skip database bootstrap."
-    return
-  fi
+  require_postgres_service
+  container_id="$(wait_for_postgres)"
 
   local postgres_user="${POSTGRES_USER:-os7}"
   local postgres_db="${POSTGRES_DATABASE:-os7_platform}"

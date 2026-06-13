@@ -1,13 +1,15 @@
 ENV_FILES ?= env/release.env env/10-db.env env/20-storage.env env/30-platform.env
 IMAGE_ENV_FILE ?= env/release.env
 STACK_FILES ?= stack/00-foundation.yml stack/10-db.yml stack/20-storage.yml stack/30-platform.yml
+INIT_STACK_FILES ?= stack/00-foundation.yml stack/10-db.yml
 DOCKER_COMPOSE ?= docker compose
 STACK_NAME ?= os7
 STACK_DEPLOY_FILES := $(foreach file,$(STACK_FILES),-c $(file))
+INIT_STACK_DEPLOY_FILES := $(foreach file,$(INIT_STACK_FILES),-c $(file))
 COMPOSE_FILES := $(foreach file,$(STACK_FILES),-f $(file))
 LOAD_ENV = set -a; for file in $(ENV_FILES); do . ./$$file; done; set +a
 
-.PHONY: update install pull up ensure-env services ps rm
+.PHONY: update install init pull up ensure-env services ps rm
 
 update: ensure-env
 	./update.sh --env-file $(IMAGE_ENV_FILE) --env-example-file $(IMAGE_ENV_FILE).example
@@ -18,6 +20,10 @@ update: ensure-env
 
 install:
 	./install.sh
+
+init: ensure-env
+	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
+		docker stack deploy --with-registry-auth $(INIT_STACK_DEPLOY_FILES) $(STACK_NAME)
 
 pull: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
