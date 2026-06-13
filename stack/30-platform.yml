@@ -131,6 +131,8 @@ services:
     image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
     command: npm run worker:start
     stop_grace_period: ${WORKER_STOP_GRACE_PERIOD:-10m}
+    healthcheck:
+      disable: true
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
       MANAGER_URL: http://manager
@@ -155,8 +157,14 @@ services:
     deploy:
       replicas: ${WORKER_REPLICAS:-1}
       update_config:
-        order: stop-first
+        order: start-first
         parallelism: 1
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: start-first
+        parallelism: 1
+        monitor: 30s
       restart_policy:
         condition: any
       resources:
