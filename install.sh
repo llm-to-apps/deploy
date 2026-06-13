@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "${SCRIPT_DIR}"
 
+DEPLOY_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 ENV_FILES="${ENV_FILES:-env/release.env env/10-db.env env/20-storage.env env/30-platform.env}"
 STACK_FILES="${STACK_FILES:-stack/00-foundation.yml stack/10-db.yml stack/20-storage.yml stack/30-platform.yml}"
 STACK_NAME="${STACK_NAME:-os7}"
@@ -11,6 +12,7 @@ POSTGRES_SERVICE="${STACK_NAME}_postgres"
 POSTGRES_READY_TIMEOUT_SECONDS="${POSTGRES_READY_TIMEOUT_SECONDS:-120}"
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-devops}"
+POSTGRES_INIT_SCRIPT="${POSTGRES_INIT_SCRIPT:-${DEPLOY_ROOT}/docker/postgres/init-forgejo-db.sh}"
 
 usage() {
   cat <<USAGE
@@ -27,9 +29,27 @@ Environment:
   STACK_NAME    Docker Swarm stack name. Default: os7.
   DEPLOY_USER   Server deploy user to create. Default: deploy.
   DEPLOY_GROUP  Server deploy group to create. Default: devops.
+  POSTGRES_INIT_SCRIPT
+                Host path mounted into PostgreSQL for one-time Forgejo DB
+                bootstrap. Default: ../docker/postgres/init-forgejo-db.sh.
   POSTGRES_READY_TIMEOUT_SECONDS
                 Seconds to wait for PostgreSQL readiness. Default: 120.
 USAGE
+}
+
+require_command() {
+  local command_name="$1"
+  local install_hint="$2"
+
+  if command -v "${command_name}" >/dev/null 2>&1; then
+    return
+  fi
+
+  echo "${command_name} is required before installing deploy configuration." >&2
+  if [[ -n "${install_hint}" ]]; then
+    echo "${install_hint}" >&2
+  fi
+  exit 1
 }
 
 require_root_access() {
@@ -129,6 +149,51 @@ generate_secrets() {
   ensure_secret env/30-platform.env AUTH_SECRET
 }
 
+ensure_postgres_init_script() {
+  local init_dir
+  local tmp
+
+  init_dir="$(dirname "${POSTGRES_INIT_SCRIPT}")"
+  require_root_access
+
+  if [[ -f "${POSTGRES_INIT_SCRIPT}" ]]; then
+    echo "PostgreSQL init script already exists at ${POSTGRES_INIT_SCRIPT}."
+    return
+  fi
+
+  as_root mkdir -p "${init_dir}"
+
+  tmp="$(mktemp)"
+  cat > "${tmp}" <<'SCRIPT'
+#!/usr/bin/env bash
+set -euo pipefail
+
+psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname postgres <<SQL
+DO
+\$do\$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_roles WHERE rolname = '${FORGEJO_POSTGRES_USER:-forgejo}'
+  ) THEN
+    CREATE ROLE "${FORGEJO_POSTGRES_USER:-forgejo}" LOGIN PASSWORD '${FORGEJO_POSTGRES_PASSWORD}';
+  END IF;
+END
+\$do\$;
+
+SELECT 'CREATE DATABASE "${FORGEJO_POSTGRES_DATABASE:-forgejo}" OWNER "${FORGEJO_POSTGRES_USER:-forgejo}"'
+WHERE NOT EXISTS (
+  SELECT FROM pg_database WHERE datname = '${FORGEJO_POSTGRES_DATABASE:-forgejo}'
+)\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE "${FORGEJO_POSTGRES_DATABASE:-forgejo}" TO "${FORGEJO_POSTGRES_USER:-forgejo}";
+SQL
+SCRIPT
+
+  as_root install -m 0755 -o root -g root "${tmp}" "${POSTGRES_INIT_SCRIPT}"
+  rm -f "${tmp}"
+  echo "Created PostgreSQL init script at ${POSTGRES_INIT_SCRIPT}."
+}
+
 ensure_deploy_user() {
   local sudoers_file="/etc/sudoers.d/os7-${DEPLOY_USER}"
   local sudoers_rule="%${DEPLOY_GROUP} ALL=(ALL) NOPASSWD:ALL"
@@ -199,6 +264,7 @@ require_postgres_service() {
 Database services are not initialized yet.
 
 Run:
+  sudo apt install -y make   # if make is not installed yet
   make init
 
 Then re-run:
@@ -294,10 +360,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-  echo "Docker is required before installing deploy configuration." >&2
-  exit 1
-fi
+require_command docker "On Ubuntu, install it with: sudo apt install -y docker.io docker-compose-v2 docker-buildx"
 
 ensure_deploy_user
 
@@ -322,6 +385,7 @@ for file in ${ENV_FILES}; do
 done
 
 generate_secrets
+ensure_postgres_init_script
 
 set -a
 for file in ${ENV_FILES}; do

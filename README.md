@@ -35,6 +35,7 @@ The manager also creates user application instances as Docker Swarm services thr
 Run these commands on the production Docker host:
 
 ```bash
+sudo apt install -y docker.io docker-compose-v2 docker-buildx make
 docker swarm init
 ```
 
@@ -50,8 +51,10 @@ Install local deploy configuration files from examples and validate the stack:
 - creates the `deploy` user when it is missing
 - adds `deploy` to `devops`
 - grants passwordless sudo to the `devops` group through `/etc/sudoers.d/os7-deploy`
+- creates the PostgreSQL host init script mounted by `stack/10-db.yml`
 
 Override the defaults with `DEPLOY_USER=...` and `DEPLOY_GROUP=...` when needed.
+Override the PostgreSQL init script location with `POSTGRES_INIT_SCRIPT=...` when the stack mount path changes.
 
 If database services are not initialized yet, start only the foundation and database stack:
 
