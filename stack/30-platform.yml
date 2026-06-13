@@ -134,6 +134,7 @@ services:
     healthcheck:
       disable: true
     environment:
+      AUTH_SECRET: ${AUTH_SECRET}
       DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
       MANAGER_URL: http://manager
       AGENT_URL: http://agent
