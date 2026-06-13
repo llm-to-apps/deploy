@@ -205,42 +205,70 @@ ensure_forgejo_bootstrap_script() {
   bootstrap_dir="$(dirname "${FORGEJO_BOOTSTRAP_SCRIPT}")"
   require_root_access
 
-  if [[ -f "${FORGEJO_BOOTSTRAP_SCRIPT}" ]]; then
-    echo "Forgejo bootstrap script already exists at ${FORGEJO_BOOTSTRAP_SCRIPT}."
-    return
-  fi
-
   as_root mkdir -p "${bootstrap_dir}"
 
   tmp="$(mktemp)"
   cat > "${tmp}" <<'SCRIPT'
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
-create_admin() {
-  tries=0
-  while [ "${tries}" -lt 60 ]; do
-    if forgejo admin user list >/dev/null 2>&1; then
-      forgejo admin user create \
-        --admin \
-        --username "${FORGEJO_ADMIN_USER:-root}" \
-        --password "${FORGEJO_ADMIN_PASSWORD}" \
-        --email "${FORGEJO_ADMIN_EMAIL:-root@example.local}" >/dev/null 2>&1 || true
-      return 0
-    fi
+/usr/bin/entrypoint "$@" &
+forgejo_pid="$!"
 
-    tries=$((tries + 1))
-    sleep 2
-  done
+gitea_admin() {
+  /sbin/su-exec git /usr/local/bin/gitea admin "$@"
 }
 
-create_admin &
-exec /usr/bin/entrypoint "$@"
+finish() {
+  kill -TERM "$forgejo_pid" 2>/dev/null || true
+  wait "$forgejo_pid" 2>/dev/null || true
+}
+
+trap finish TERM INT
+
+for _ in $(seq 1 120); do
+  if gitea_admin user list >/dev/null 2>&1; then
+    break
+  fi
+
+  if ! kill -0 "$forgejo_pid" 2>/dev/null; then
+    wait "$forgejo_pid"
+    exit $?
+  fi
+
+  sleep 1
+done
+
+admin_user="${FORGEJO_ADMIN_USER:-root}"
+admin_password="${FORGEJO_ADMIN_PASSWORD:-admin1234}"
+admin_email="${FORGEJO_ADMIN_EMAIL:-root@example.local}"
+
+if gitea_admin user list | awk 'NR > 1 {print $2}' | grep -Fxq "$admin_user"; then
+  gitea_admin user change-password \
+    --username "$admin_user" \
+    --password "$admin_password" \
+    --must-change-password=false
+else
+  gitea_admin user create \
+    --admin \
+    --username "$admin_user" \
+    --password "$admin_password" \
+    --email "$admin_email" \
+    --must-change-password=false
+fi
+
+wait "$forgejo_pid"
 SCRIPT
+
+  if [[ -f "${FORGEJO_BOOTSTRAP_SCRIPT}" ]] && cmp -s "${tmp}" "${FORGEJO_BOOTSTRAP_SCRIPT}"; then
+    echo "Forgejo bootstrap script is up to date at ${FORGEJO_BOOTSTRAP_SCRIPT}."
+    rm -f "${tmp}"
+    return
+  fi
 
   as_root install -m 0755 -o root -g root "${tmp}" "${FORGEJO_BOOTSTRAP_SCRIPT}"
   rm -f "${tmp}"
-  echo "Created Forgejo bootstrap script at ${FORGEJO_BOOTSTRAP_SCRIPT}."
+  echo "Installed Forgejo bootstrap script at ${FORGEJO_BOOTSTRAP_SCRIPT}."
 }
 
 ensure_deploy_user() {
