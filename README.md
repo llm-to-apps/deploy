@@ -41,7 +41,7 @@ docker swarm init
 Install local deploy configuration files from examples and validate the stack:
 
 ```bash
-make install
+./install.sh
 ```
 
 Then edit secrets/domains in `deploy/env/*.env` before starting services.

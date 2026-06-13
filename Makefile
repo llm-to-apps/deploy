@@ -16,9 +16,8 @@ update: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
 		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
 
-install: ensure-env
-	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
-		docker stack config $(STACK_DEPLOY_FILES)
+install:
+	./install.sh
 
 pull: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
