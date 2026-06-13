@@ -1,0 +1,167 @@
+services:
+  traefik:
+    image: ${TRAEFIK_IMAGE:-traefik:v3.7}
+    command:
+      - --log.level=INFO
+      - --api.dashboard=false
+      - --entrypoints.web.address=:80
+      - --providers.swarm=true
+      - --providers.swarm.endpoint=unix:///var/run/docker.sock
+      - --providers.swarm.exposedbydefault=false
+      - --providers.swarm.network=${STACK_NAME:-os7}_ingress
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ingress
+    deploy:
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${TRAEFIK_CPUS:-0.50}"
+          memory: ${TRAEFIK_MEMORY_LIMIT:-512m}
+
+  manager:
+    image: ${MANAGER_IMAGE:-ghcr.io/os7/manager}:${MANAGER_IMAGE_TAG:-latest}
+    environment:
+      PORT: "80"
+      MYSQL_HOST: ${MYSQL_HOST:-mysql}
+      MYSQL_ROOT_USER: ${MYSQL_ROOT_USER:-root}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      USER_INSTANCE_IMAGE: ${USER_INSTANCE_IMAGE:-os7/user-instance:latest}
+      STACK_NAME: ${STACK_NAME:-os7}
+      PROJECT_MEMORY_RESERVATION_MB: ${PROJECT_MEMORY_RESERVATION_MB:-128}
+      PROJECT_MEMORY_LIMIT_MB: ${PROJECT_MEMORY_LIMIT_MB:-768}
+      PROJECT_CPU_RESERVATION: ${PROJECT_CPU_RESERVATION:-0.05}
+      PROJECT_CPU_LIMIT: ${PROJECT_CPU_LIMIT:-1}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - internal
+      - db
+    deploy:
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${MANAGER_CPUS:-0.50}"
+          memory: ${MANAGER_MEMORY_LIMIT:-512m}
+
+  site:
+    image: ${SITE_IMAGE:-ghcr.io/os7/site}:${SITE_IMAGE_TAG:-latest}
+    networks:
+      - ingress
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.site.rule=Host(`${SITE_DOMAIN}`)
+        - traefik.http.routers.site.entrypoints=web
+        - traefik.http.services.site.loadbalancer.server.port=80
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${SITE_CPUS:-0.50}"
+          memory: ${SITE_MEMORY_LIMIT:-512m}
+
+  web:
+    image: ${WEB_IMAGE:-ghcr.io/os7/web}:${WEB_IMAGE_TAG:-latest}
+    environment:
+      AUTH_SECRET: ${AUTH_SECRET}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
+      MANAGER_URL: http://manager
+      AGENT_URL: http://agent
+      PROJECT_USE_AGENT_MODEL: ${PROJECT_USE_AGENT_MODEL:-x-ai/grok-4.3}
+      PROJECT_DEV_AGENT_MODEL: ${PROJECT_DEV_AGENT_MODEL:-openai/gpt-5}
+      USER_AGENT_MODEL: ${USER_AGENT_MODEL:-openai/gpt-5}
+      PLATFORM_BASE_URL: ${PLATFORM_BASE_URL}
+      PLATFORM_DOMAIN: ${PLATFORM_DOMAIN}
+      PROJECT_PUBLIC_SCHEME: ${PROJECT_PUBLIC_SCHEME}
+      OAUTH_INTERNAL_BASE_URL: ${OAUTH_INTERNAL_BASE_URL}
+      REDIS_URL: redis://redis:6379
+      FORGEJO_URL: ${FORGEJO_URL:-http://forgejo}
+      FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo}
+      FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+    networks:
+      - internal
+      - db
+      - ingress
+    deploy:
+      labels:
+        - traefik.enable=true
+        - traefik.http.routers.web.rule=Host(`${PLATFORM_DOMAIN}`)
+        - traefik.http.routers.web.entrypoints=web
+        - traefik.http.services.web.loadbalancer.server.port=80
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${WEB_CPUS:-1.00}"
+          memory: ${WEB_MEMORY_LIMIT:-1024m}
+
+  worker:
+    image: ${WEB_IMAGE:-ghcr.io/os7/web}:${WEB_IMAGE_TAG:-latest}
+    command: npm run worker:start
+    stop_grace_period: ${WORKER_STOP_GRACE_PERIOD:-10m}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
+      MANAGER_URL: http://manager
+      AGENT_URL: http://agent
+      PROJECT_USE_AGENT_MODEL: ${PROJECT_USE_AGENT_MODEL:-x-ai/grok-4.3}
+      PROJECT_DEV_AGENT_MODEL: ${PROJECT_DEV_AGENT_MODEL:-openai/gpt-5}
+      USER_AGENT_MODEL: ${USER_AGENT_MODEL:-openai/gpt-5}
+      PLATFORM_BASE_URL: ${PLATFORM_BASE_URL}
+      REDIS_URL: redis://redis:6379
+      DEPLOY_WORKER_CONCURRENCY: ${DEPLOY_WORKER_CONCURRENCY:-2}
+      WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS: ${WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS:-540000}
+      APP_READY_BASE_URL: ${APP_READY_BASE_URL:-http://traefik}
+      DEPLOY_APP_READY_TIMEOUT_MS: ${DEPLOY_APP_READY_TIMEOUT_MS:-900000}
+      FORGEJO_URL: ${FORGEJO_URL:-http://forgejo}
+      FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo}
+      FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+    networks:
+      - internal
+      - db
+      - ingress
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+      update_config:
+        order: stop-first
+        parallelism: 1
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${WORKER_CPUS:-1.00}"
+          memory: ${WORKER_MEMORY_LIMIT:-1024m}
+
+  agent:
+    image: ${AGENT_IMAGE:-ghcr.io/os7/agent}:${AGENT_IMAGE_TAG:-latest}
+    stop_grace_period: ${AGENT_STOP_GRACE_PERIOD:-10m}
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      PLATFORM_BASE_URL: ${PLATFORM_BASE_URL}
+      MANAGER_URL: http://manager
+      DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
+      MASTRA_DATABASE_SCHEMA: ${MASTRA_DATABASE_SCHEMA:-mastra}
+      MASTRA_SHUTDOWN_TIMEOUT_MS: ${MASTRA_SHUTDOWN_TIMEOUT_MS:-540000}
+    networks:
+      - internal
+      - db
+    deploy:
+      replicas: ${AGENT_REPLICAS:-2}
+      update_config:
+        order: start-first
+        parallelism: 1
+        delay: 10s
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${AGENT_CPUS:-1.00}"
+          memory: ${AGENT_MEMORY_LIMIT:-1024m}

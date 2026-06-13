@@ -1,0 +1,40 @@
+services:
+  forgejo:
+    image: ${FORGEJO_IMAGE:-codeberg.org/forgejo/forgejo:15}
+    entrypoint: ["/usr/local/bin/forgejo-bootstrap.sh"]
+    environment:
+      USER_UID: ${FORGEJO_USER_UID:-1000}
+      USER_GID: ${FORGEJO_USER_GID:-1000}
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: postgres:5432
+      FORGEJO__database__NAME: ${FORGEJO_POSTGRES_DATABASE:-forgejo}
+      FORGEJO__database__USER: ${FORGEJO_POSTGRES_USER:-forgejo}
+      FORGEJO__database__PASSWD: ${FORGEJO_POSTGRES_PASSWORD}
+      FORGEJO__server__ROOT_URL: ${FORGEJO_ROOT_URL}
+      FORGEJO__server__HTTP_PORT: "80"
+      FORGEJO__server__SSH_DOMAIN: ${FORGEJO_SSH_DOMAIN}
+      FORGEJO__server__SSH_PORT: ${FORGEJO_SSH_PORT:-2222}
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__security__SECRET_KEY: ${FORGEJO_SECRET_KEY}
+      FORGEJO__security__INTERNAL_TOKEN: ${FORGEJO_INTERNAL_TOKEN}
+      FORGEJO__service__DISABLE_REGISTRATION: ${FORGEJO_DISABLE_REGISTRATION:-true}
+      FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
+      FORGEJO_ADMIN_PASSWORD: ${FORGEJO_ADMIN_PASSWORD}
+      FORGEJO_ADMIN_EMAIL: ${FORGEJO_ADMIN_EMAIL:-root@example.local}
+    volumes:
+      - forgejo-data:/data
+      - ../../docker/forgejo/bootstrap.sh:/usr/local/bin/forgejo-bootstrap.sh:ro
+    cap_add:
+      - NET_BIND_SERVICE
+    networks:
+      internal:
+      db:
+        aliases:
+          - forgejo
+    deploy:
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${FORGEJO_CPUS:-1.00}"
+          memory: ${FORGEJO_MEMORY_LIMIT:-1024m}

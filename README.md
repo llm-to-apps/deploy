@@ -1,18 +1,34 @@
 # Production Deploy
 
-This repository contains the production Docker Compose entrypoint for the LLAgents runtime host.
+This repository contains the production Docker Swarm entrypoint for the OS7 runtime host.
 
-The Compose stack starts:
+The stack is assembled from component files in `deploy/stack`:
+
+- `00-foundation.yml` for shared networks and volumes
+- `10-db.yml` for PostgreSQL, MySQL, and Redis
+- `20-storage.yml` for Forgejo-backed Git storage
+- `30-platform.yml` for Traefik, site, manager, web, worker, and agent
+
+Environment is split into component files in `deploy/env`:
+
+- `release.env` for image names and tags shared by the whole release
+- `10-db.env` for PostgreSQL, MySQL, Redis, and their resources
+- `20-storage.env` for Forgejo, its database bootstrap, secrets, and resources
+- `30-platform.env` for public domains, auth, Traefik, site, manager, web, worker, agent, model provider settings, and their resources
+
+Together they start:
 
 - Traefik reverse proxy
-- LLAgents manager
-- LLAgents web and worker
-- LLAgents agent
+- OS7 public site
+- OS7 manager
+- OS7 web and worker
+- OS7 agent
 - PostgreSQL for platform data and Mastra memory
 - MySQL for customer application databases
 - Redis for queues
+- Forgejo for per-project Git repositories
 
-The manager then creates user application instances as Docker Swarm services through the Docker Engine API.
+The manager also creates user application instances as Docker Swarm services through the Docker Engine API.
 
 ## Server Bootstrap
 
@@ -20,13 +36,12 @@ Run these commands on the production Docker host:
 
 ```bash
 docker swarm init
-make ensure-networks
 ```
 
-Copy the environment example and edit secrets/domains:
+Create missing environment files from examples and edit secrets/domains:
 
 ```bash
-cp .env.example .env
+make ensure-env
 ```
 
 `MYSQL_ROOT_USER` is used by the manager to connect to MySQL. With the official `mysql` image, keep it as `root` unless you also change the database image/bootstrap.
@@ -38,13 +53,18 @@ Start production services:
 make up
 ```
 
-Update the manager to the latest GitHub tag:
+`make up` loads the component env files and deploys the component stack files as a Swarm stack named `os7`.
+Override the stack name with `STACK_NAME=... make up` when needed.
+Override the component list with `STACK_FILES="..." make up` for advanced maintenance.
+Override the environment list with `ENV_FILES="..." make up` when needed.
+
+Update platform services:
 
 ```bash
 make update
 ```
 
-This expects the manager repo to have release tags such as `v0.1.0`.
+This updates the configured image tags and redeploys the Swarm stack.
 
 For private repos or higher GitHub API rate limits, provide:
 
@@ -55,18 +75,19 @@ GITHUB_TOKEN=github_pat_... make update
 Check manager health:
 
 ```bash
-docker compose --env-file .env -f docker-compose.yml exec manager wget -qO- http://localhost:8080/health
+docker stack services os7
+docker stack ps os7
 ```
 
 ## Important Notes
 
 - The manager mounts `/var/run/docker.sock`, so treat it as root-level cluster control.
 - Do not expose the manager publicly.
-- PostgreSQL and MySQL run in `llagents_db`.
+- PostgreSQL and MySQL run in the stack `db` network.
 - MySQL is reserved for customer app databases provisioned by the manager.
 - PostgreSQL stores platform data and Mastra Memory.
-- Traefik and user app services join `llagents_ingress`.
-- Web-facing internal platform services use `llagents_internal`.
+- Traefik and user app services join the stack `ingress` network.
+- Web-facing internal platform services use the stack `internal` network.
 - Traefik uses the Swarm provider and reads labels from Swarm services.
 - Cloudflare terminates TLS, so Traefik only exposes HTTP on port 80.
-- Keep `llagents_db` and `llagents_ingress` attachable so Compose services and Swarm services can share them.
+- Keep `db` and `ingress` attachable so manager-created app services can join them.

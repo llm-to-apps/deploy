@@ -1,0 +1,13 @@
+volumes:
+  forgejo-data:
+  postgres-data:
+  mysql-data:
+  redis-data:
+
+networks:
+  db:
+    attachable: true
+  ingress:
+    attachable: true
+  internal:
+    attachable: true

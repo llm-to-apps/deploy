@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE:-os7_platform}
+      POSTGRES_USER: ${POSTGRES_USER:-os7}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      FORGEJO_POSTGRES_DATABASE: ${FORGEJO_POSTGRES_DATABASE:-forgejo}
+      FORGEJO_POSTGRES_USER: ${FORGEJO_POSTGRES_USER:-forgejo}
+      FORGEJO_POSTGRES_PASSWORD: ${FORGEJO_POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../../docker/postgres/init-forgejo-db.sh:/docker-entrypoint-initdb.d/20-forgejo-db.sh:ro
+    networks:
+      db:
+        aliases:
+          - postgres
+    deploy:
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${POSTGRES_CPUS:-2.00}"
+          memory: ${POSTGRES_MEMORY_LIMIT:-2048m}
+
+  mysql:
+    image: ${MYSQL_IMAGE:-mysql:8.4}
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      db:
+        aliases:
+          - mysql
+    deploy:
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${MYSQL_CPUS:-2.00}"
+          memory: ${MYSQL_MEMORY_LIMIT:-2048m}
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7.4-alpine}
+    volumes:
+      - redis-data:/data
+    networks:
+      - internal
+    deploy:
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${REDIS_CPUS:-0.50}"
+          memory: ${REDIS_MEMORY_LIMIT:-512m}
