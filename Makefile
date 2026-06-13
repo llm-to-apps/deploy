@@ -7,7 +7,7 @@ STACK_DEPLOY_FILES := $(foreach file,$(STACK_FILES),-c $(file))
 COMPOSE_FILES := $(foreach file,$(STACK_FILES),-f $(file))
 LOAD_ENV = set -a; for file in $(ENV_FILES); do . ./$$file; done; set +a
 
-.PHONY: update config pull up ensure-env services ps rm
+.PHONY: update install pull up ensure-env services ps rm
 
 update: ensure-env
 	./update.sh --env-file $(IMAGE_ENV_FILE) --env-example-file $(IMAGE_ENV_FILE).example
@@ -16,7 +16,7 @@ update: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
 		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
 
-config: ensure-env
+install: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
 		docker stack config $(STACK_DEPLOY_FILES)
 

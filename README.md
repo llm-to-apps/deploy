@@ -38,11 +38,13 @@ Run these commands on the production Docker host:
 docker swarm init
 ```
 
-Create missing environment files from examples and edit secrets/domains:
+Install local deploy configuration files from examples and validate the stack:
 
 ```bash
-make ensure-env
+make install
 ```
+
+Then edit secrets/domains in `deploy/env/*.env` before starting services.
 
 `MYSQL_ROOT_USER` is used by the manager to connect to MySQL. With the official `mysql` image, keep it as `root` unless you also change the database image/bootstrap.
 `POSTGRES_*` is used by web, worker, and agent for platform state and Mastra Memory.
