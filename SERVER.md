@@ -124,6 +124,79 @@ Use a GitHub token only when needed for private access or API rate limits:
 GITHUB_TOKEN=github_pat_... make update
 ```
 
+## Application Template Manifest Updates
+
+Application templates are registered in the platform database table
+`app_templates`. Do not hand-edit template manifests in production. Use the web
+CLI so manifests are fetched, validated, diffed, and written with the same
+`ApiResponse`/manifest contract used by the platform.
+
+Template repositories should publish an update source in `manifest.json`:
+
+```json
+{
+  "updates": {
+    "github": {
+      "repository": "llm-to-apps/money-template",
+      "ref": "main",
+      "path": "manifest.json"
+    }
+  }
+}
+```
+
+The template release flow is:
+
+1. Build and publish the new template image.
+2. Update the template repository `manifest.json` with the new image and any
+   runtime/env changes.
+3. Push the template repository.
+4. Deploy the latest web image if the production web CLI has changed.
+5. Run the template update CLI from a running `os7_web` container.
+
+Get a running web container:
+
+```bash
+WEB_CONTAINER="$(docker ps --filter name=os7_web -q | head -n1)"
+```
+
+Preview available manifest updates:
+
+```bash
+docker exec -it "$WEB_CONTAINER" npm run cli -- templates check-updates
+```
+
+Apply all detected updates:
+
+```bash
+docker exec -it "$WEB_CONTAINER" npm run cli -- templates check-updates --apply
+```
+
+Update one template from its configured update source:
+
+```bash
+docker exec -it "$WEB_CONTAINER" npm run cli -- templates update money
+```
+
+Update one template from an explicit manifest URL:
+
+```bash
+docker exec -it "$WEB_CONTAINER" npm run cli -- templates update money \
+  --manifest-url https://raw.githubusercontent.com/llm-to-apps/money-template/main/manifest.json
+```
+
+Notes:
+
+- `local:*` manifests are intentionally skipped unless an explicit
+  `--manifest-url` is provided.
+- Pinned CDN URLs such as `cdn.jsdelivr.net/gh/...@<commit>/manifest.json` do
+  not move by themselves. The CLI needs `updates.github` in the stored manifest,
+  or an explicit `--manifest-url`.
+- The manifest is the source of truth for the template image. Do not infer image
+  versions from GHCR tags by hand.
+- The CLI updates only future installs. Existing deployed projects keep their
+  current image/runtime until project-level upgrade tooling exists.
+
 ## Manual Commands
 
 Check services:
