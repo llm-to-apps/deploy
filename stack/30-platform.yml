@@ -5,12 +5,14 @@ services:
       - --log.level=INFO
       - --api.dashboard=false
       - --entrypoints.web.address=:80
+      - --entrypoints.dev.address=:8080
       - --providers.swarm=true
       - --providers.swarm.endpoint=unix:///var/run/docker.sock
       - --providers.swarm.exposedbydefault=false
       - --providers.swarm.network=${STACK_NAME:-os7}_ingress
     ports:
       - "80:80"
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
