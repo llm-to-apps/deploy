@@ -9,7 +9,7 @@ INIT_STACK_DEPLOY_FILES := $(foreach file,$(INIT_STACK_FILES),-c $(file))
 COMPOSE_FILES := $(foreach file,$(STACK_FILES),-f $(file))
 LOAD_ENV = set -a; for file in $(ENV_FILES); do . ./$$file; done; set +a
 
-.PHONY: update install init pull up ensure-env status services ps rm
+.PHONY: update install init pull up ensure-env status services ps ps-full rm
 
 update: ensure-env
 	./update.sh --env-file $(IMAGE_ENV_FILE) --env-example-file $(IMAGE_ENV_FILE).example
@@ -35,16 +35,29 @@ up: ensure-env
 
 status:
 	@echo "Services for stack $(STACK_NAME):"
-	@docker stack services $(STACK_NAME)
+	@docker stack services --format "table {{.Name}}\t{{.Image}}\t{{.Replicas}}\t{{.Ports}}" $(STACK_NAME)
 	@echo
-	@echo "Tasks for stack $(STACK_NAME):"
-	@docker stack ps $(STACK_NAME)
+	@echo "Running tasks for stack $(STACK_NAME):"
+	@docker stack ps \
+		--filter desired-state=running \
+		--format "table {{.Name}}\t{{.Image}}\t{{.CurrentState}}\t{{.Error}}" \
+		$(STACK_NAME)
+	@echo
+	@echo "Recent failed tasks:"
+	@docker stack ps \
+		--filter desired-state=shutdown \
+		--format "{{.Name}}\t{{.Image}}\t{{.CurrentState}}\t{{.Error}}" \
+		$(STACK_NAME) \
+		| awk 'BEGIN { found = 0 } /Failed|Rejected/ { if (!found) { print "NAME\tIMAGE\tCURRENT STATE\tERROR"; found = 1 } print } END { if (!found) print "none" }'
 
 services:
 	docker stack services $(STACK_NAME)
 
 ps:
 	docker stack ps $(STACK_NAME)
+
+ps-full:
+	docker stack ps --no-trunc $(STACK_NAME)
 
 rm:
 	docker stack rm $(STACK_NAME)
