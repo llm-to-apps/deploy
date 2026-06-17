@@ -38,6 +38,8 @@ services:
       PROJECT_CPU_LIMIT: ${PROJECT_CPU_LIMIT:-1}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "${MANAGER_PORT:-8080}:80"
     networks:
       - internal
       - db
