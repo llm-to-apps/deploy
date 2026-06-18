@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg17}
     environment:
       POSTGRES_DB: ${POSTGRES_DATABASE:-os7_platform}
       POSTGRES_USER: ${POSTGRES_USER:-os7}
@@ -8,6 +8,9 @@ services:
       FORGEJO_POSTGRES_DATABASE: ${FORGEJO_POSTGRES_DATABASE:-forgejo}
       FORGEJO_POSTGRES_USER: ${FORGEJO_POSTGRES_USER:-forgejo}
       FORGEJO_POSTGRES_PASSWORD: ${FORGEJO_POSTGRES_PASSWORD}
+      SEAWEEDFS_POSTGRES_DATABASE: ${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}
+      SEAWEEDFS_POSTGRES_USER: ${SEAWEEDFS_POSTGRES_USER:-seaweedfs}
+      SEAWEEDFS_POSTGRES_PASSWORD: ${SEAWEEDFS_POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ../../docker/postgres/init-forgejo-db.sh:/docker-entrypoint-initdb.d/20-forgejo-db.sh:ro

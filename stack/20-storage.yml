@@ -44,3 +44,85 @@ services:
         limits:
           cpus: "${FORGEJO_CPUS:-1.00}"
           memory: ${FORGEJO_MEMORY_LIMIT:-1024m}
+
+  seaweedfs:
+    image: ${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.34}
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        cat > /tmp/seaweedfs-iam.json <<EOF
+        {
+          "sts": {
+            "tokenDuration": "1h",
+            "maxSessionLength": "12h",
+            "issuer": "seaweedfs-sts",
+            "signingKey": "$${SEAWEEDFS_IAM_SIGNING_KEY}"
+          },
+          "providers": [],
+          "policies": [],
+          "roles": []
+        }
+        EOF
+        cat > /etc/seaweedfs/filer.toml <<EOF
+        [leveldb2]
+        enabled = false
+        dir = "/data/filerldb2"
+
+        [postgres]
+        enabled = true
+        hostname = "$${SEAWEEDFS_POSTGRES_HOST}"
+        port = $${SEAWEEDFS_POSTGRES_PORT}
+        username = "$${SEAWEEDFS_POSTGRES_USER}"
+        password = "$${SEAWEEDFS_POSTGRES_PASSWORD}"
+        database = "$${SEAWEEDFS_POSTGRES_DATABASE}"
+        sslmode = "$${SEAWEEDFS_POSTGRES_SSLMODE}"
+        connection_max_idle = $${SEAWEEDFS_POSTGRES_CONNECTION_MAX_IDLE}
+        connection_max_open = $${SEAWEEDFS_POSTGRES_CONNECTION_MAX_OPEN}
+        EOF
+        exec weed server \
+          -ip=seaweedfs \
+          -ip.bind=0.0.0.0 \
+          -dir=/data \
+          -master.port=9333 \
+          -master.port.grpc=19333 \
+          -volume.port=8080 \
+          -volume.port.grpc=18080 \
+          -volume.index=leveldbMedium \
+          -filer \
+          -filer.port=8888 \
+          -filer.port.grpc=18888 \
+          -s3 \
+          -s3.port=8333 \
+          -s3.iam=true \
+          -s3.iam.readOnly=false \
+          -s3.iam.config=/tmp/seaweedfs-iam.json
+    environment:
+      AWS_ACCESS_KEY_ID: ${SEAWEEDFS_S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
+      SEAWEEDFS_S3_ACCESS_KEY: ${SEAWEEDFS_S3_ACCESS_KEY}
+      SEAWEEDFS_S3_SECRET_KEY: ${SEAWEEDFS_S3_SECRET_KEY}
+      SEAWEEDFS_IAM_SIGNING_KEY: ${SEAWEEDFS_IAM_SIGNING_KEY}
+      SEAWEEDFS_POSTGRES_HOST: ${SEAWEEDFS_POSTGRES_HOST:-postgres}
+      SEAWEEDFS_POSTGRES_PORT: ${SEAWEEDFS_POSTGRES_PORT:-5432}
+      SEAWEEDFS_POSTGRES_DATABASE: ${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}
+      SEAWEEDFS_POSTGRES_USER: ${SEAWEEDFS_POSTGRES_USER:-seaweedfs}
+      SEAWEEDFS_POSTGRES_PASSWORD: ${SEAWEEDFS_POSTGRES_PASSWORD}
+      SEAWEEDFS_POSTGRES_SSLMODE: ${SEAWEEDFS_POSTGRES_SSLMODE:-disable}
+      SEAWEEDFS_POSTGRES_CONNECTION_MAX_IDLE: ${SEAWEEDFS_POSTGRES_CONNECTION_MAX_IDLE:-100}
+      SEAWEEDFS_POSTGRES_CONNECTION_MAX_OPEN: ${SEAWEEDFS_POSTGRES_CONNECTION_MAX_OPEN:-100}
+    volumes:
+      - seaweedfs-data:/data
+    networks:
+      db:
+        aliases:
+          - seaweedfs
+      internal:
+        aliases:
+          - seaweedfs
+    deploy:
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${SEAWEEDFS_CPUS:-1.00}"
+          memory: ${SEAWEEDFS_MEMORY_LIMIT:-1024m}

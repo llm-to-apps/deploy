@@ -6,14 +6,14 @@ The stack is assembled from component files in `deploy/stack`:
 
 - `00-foundation.yml` for shared networks and volumes
 - `10-db.yml` for PostgreSQL, MySQL, and Redis
-- `20-storage.yml` for Forgejo-backed Git storage
+- `20-storage.yml` for Forgejo-backed Git storage and SeaweedFS object storage
 - `30-platform.yml` for Traefik, site, manager, web, worker, and agent
 
 Environment is split into component files in `deploy/env`:
 
 - `release.env` for image names and tags shared by the whole release
 - `10-db.env` for PostgreSQL, MySQL, Redis, and their resources
-- `20-storage.env` for Forgejo, its database bootstrap, secrets, and resources
+- `20-storage.env` for Forgejo, SeaweedFS, storage secrets, metadata database settings, and resources
 - `30-platform.env` for public domains, auth, Traefik, site, manager, web, worker, agent, model provider settings, and their resources
 
 Together they start:
@@ -27,6 +27,7 @@ Together they start:
 - MySQL for customer application databases
 - Redis for queues
 - Forgejo for per-project Git repositories
+- SeaweedFS 4.34 for S3-compatible object storage, with filer metadata in PostgreSQL and IAM API provisioning
 
 The manager also creates user application instances as Docker Swarm services through the Docker Engine API.
 
@@ -111,6 +112,9 @@ docker stack ps os7
 - PostgreSQL and MySQL run in the stack `db` network.
 - MySQL is reserved for customer app databases provisioned by the manager.
 - PostgreSQL stores platform data and Mastra Memory.
+- PostgreSQL also stores SeaweedFS filer metadata in the `SEAWEEDFS_POSTGRES_DATABASE` database.
+- SeaweedFS exposes an internal S3-compatible endpoint at `http://seaweedfs:8333`, uses `leveldbMedium` for volume indexes, and enables writable embedded IAM.
+- Only manager receives the SeaweedFS admin key. Web and worker receive scoped credentials for `STORAGE_S3_BUCKET`; per-project bucket credentials are created by manager and returned to web during deploy provisioning.
 - Traefik and user app services join the stack `ingress` network.
 - Web-facing internal platform services use the stack `internal` network.
 - Traefik uses the Swarm provider and reads labels from Swarm services.

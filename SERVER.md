@@ -44,14 +44,14 @@ The production stack is Docker Swarm, assembled from:
 
 - `stack/00-foundation.yml`: networks and volumes
 - `stack/10-db.yml`: PostgreSQL, MySQL, Redis
-- `stack/20-storage.yml`: Forgejo
+- `stack/20-storage.yml`: Forgejo, SeaweedFS
 - `stack/30-platform.yml`: Traefik, site, manager, web, worker, agent
 
 Environment files:
 
 - `env/release.env`: image names and pinned image tags
 - `env/10-db.env`: database settings and resources
-- `env/20-storage.env`: Forgejo settings and secrets
+- `env/20-storage.env`: Forgejo and SeaweedFS settings, metadata database settings, and secrets
 - `env/30-platform.env`: domains, auth, URLs, model settings, service resources
 
 `env/*.env` are server-local configuration files. Preserve their secrets and do
@@ -68,6 +68,8 @@ The stack currently runs:
 - `os7_manager`: Swarm/project service manager
 - `os7_agent`: Mastra agent runtime
 - `os7_forgejo`: Git storage
+- `os7_seaweedfs`: SeaweedFS 4.34 S3-compatible object storage, internal endpoint `http://seaweedfs:8333`, PostgreSQL-backed filer metadata, writable embedded IAM, `leveldbMedium` volume indexes, shared web bucket from `STORAGE_S3_BUCKET`
+- `os7_manager`: the only platform service with SeaweedFS admin credentials; it provisions the shared web bucket credentials and per-project bucket credentials.
 - `os7_postgres`: platform and Mastra database
 - `os7_mysql`: customer app databases
 - `os7_redis`: queues

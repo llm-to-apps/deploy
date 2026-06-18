@@ -9,7 +9,7 @@ INIT_STACK_DEPLOY_FILES := $(foreach file,$(INIT_STACK_FILES),-c $(file))
 COMPOSE_FILES := $(foreach file,$(STACK_FILES),-f $(file))
 LOAD_ENV = set -a; for file in $(ENV_FILES); do . ./$$file; done; set +a
 
-.PHONY: update install init pull up ensure-env status services ps ps-full rm
+.PHONY: update install init pull up bootstrap-storage ensure-env status services ps ps-full rm
 
 update: ensure-env
 	./update.sh --env-file $(IMAGE_ENV_FILE) --env-example-file $(IMAGE_ENV_FILE).example
@@ -32,6 +32,12 @@ pull: ensure-env
 up: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
 		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
+	./install.sh --bootstrap-storage-only
+	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
+		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
+
+bootstrap-storage: ensure-env
+	./install.sh --bootstrap-storage-only
 
 status:
 	@echo "Services for stack $(STACK_NAME):"

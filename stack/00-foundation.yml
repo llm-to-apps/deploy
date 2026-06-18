@@ -1,5 +1,6 @@
 volumes:
   forgejo-data:
+  seaweedfs-data:
   postgres-data:
   mysql-data:
   redis-data:

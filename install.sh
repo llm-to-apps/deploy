@@ -10,6 +10,7 @@ STACK_FILES="${STACK_FILES:-stack/00-foundation.yml stack/10-db.yml stack/20-sto
 STACK_NAME="${STACK_NAME:-os7}"
 POSTGRES_SERVICE="${STACK_NAME}_postgres"
 POSTGRES_READY_TIMEOUT_SECONDS="${POSTGRES_READY_TIMEOUT_SECONDS:-120}"
+MANAGER_READY_TIMEOUT_SECONDS="${MANAGER_READY_TIMEOUT_SECONDS:-180}"
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
 DEPLOY_GROUP="${DEPLOY_GROUP:-devops}"
 POSTGRES_INIT_SCRIPT="${POSTGRES_INIT_SCRIPT:-${DEPLOY_ROOT}/docker/postgres/init-forgejo-db.sh}"
@@ -17,12 +18,16 @@ FORGEJO_BOOTSTRAP_SCRIPT="${FORGEJO_BOOTSTRAP_SCRIPT:-${DEPLOY_ROOT}/docker/forg
 
 usage() {
   cat <<USAGE
-Usage: ./install.sh
+Usage: ./install.sh [--bootstrap-storage-only]
 
 Create missing deploy env files from examples, ensure Docker Swarm is active,
 generate local secrets when placeholders are still present, require initialized
 database services, create missing databases, and validate the production stack
 configuration.
+
+With --bootstrap-storage-only, call the internal manager API to create the
+shared web SeaweedFS bucket and scoped credentials, then write them to
+env/30-platform.env.
 
 Environment:
   ENV_FILES     Space-separated env files to load.
@@ -38,6 +43,9 @@ Environment:
                 Default: ../docker/forgejo/bootstrap.sh.
   POSTGRES_READY_TIMEOUT_SECONDS
                 Seconds to wait for PostgreSQL readiness. Default: 120.
+  MANAGER_READY_TIMEOUT_SECONDS
+                Seconds to wait for manager readiness during storage bootstrap.
+                Default: 180.
 USAGE
 }
 
@@ -85,6 +93,15 @@ random_secret() {
   fi
 
   LC_ALL=C tr -dc 'a-f0-9' </dev/urandom | head -c 64
+}
+
+random_base64_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -base64 32
+    return
+  fi
+
+  LC_ALL=C tr -dc 'A-Za-z0-9+/=' </dev/urandom | head -c 44
 }
 
 env_value() {
@@ -143,6 +160,21 @@ ensure_secret() {
   echo "Generated ${key} in ${file}"
 }
 
+ensure_base64_secret() {
+  local file="$1"
+  local key="$2"
+  local current
+
+  current="$(env_value "${file}" "${key}")"
+
+  if ! is_placeholder_value "${current}"; then
+    return
+  fi
+
+  set_env_value "${file}" "${key}" "$(random_base64_secret)"
+  echo "Generated ${key} in ${file}"
+}
+
 generate_secrets() {
   ensure_secret env/10-db.env POSTGRES_PASSWORD
   ensure_secret env/10-db.env MYSQL_ROOT_PASSWORD
@@ -150,6 +182,10 @@ generate_secrets() {
   ensure_secret env/20-storage.env FORGEJO_SECRET_KEY
   ensure_secret env/20-storage.env FORGEJO_INTERNAL_TOKEN
   ensure_secret env/20-storage.env FORGEJO_ADMIN_PASSWORD
+  ensure_secret env/20-storage.env SEAWEEDFS_POSTGRES_PASSWORD
+  ensure_secret env/20-storage.env SEAWEEDFS_S3_ACCESS_KEY
+  ensure_secret env/20-storage.env SEAWEEDFS_S3_SECRET_KEY
+  ensure_base64_secret env/20-storage.env SEAWEEDFS_IAM_SIGNING_KEY
   ensure_secret env/30-platform.env AUTH_SECRET
 }
 
@@ -190,6 +226,37 @@ WHERE NOT EXISTS (
 )\gexec
 
 GRANT ALL PRIVILEGES ON DATABASE "${FORGEJO_POSTGRES_DATABASE:-forgejo}" TO "${FORGEJO_POSTGRES_USER:-forgejo}";
+
+DO
+\$do\$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_roles WHERE rolname = '${SEAWEEDFS_POSTGRES_USER:-seaweedfs}'
+  ) THEN
+    CREATE ROLE "${SEAWEEDFS_POSTGRES_USER:-seaweedfs}" LOGIN PASSWORD '${SEAWEEDFS_POSTGRES_PASSWORD}';
+  END IF;
+END
+\$do\$;
+
+SELECT 'CREATE DATABASE "${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}" OWNER "${SEAWEEDFS_POSTGRES_USER:-seaweedfs}"'
+WHERE NOT EXISTS (
+  SELECT FROM pg_database WHERE datname = '${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}'
+)\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE "${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}" TO "${SEAWEEDFS_POSTGRES_USER:-seaweedfs}";
+SQL
+
+psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}" <<SQL
+CREATE TABLE IF NOT EXISTS filemeta (
+  dirhash BIGINT,
+  name VARCHAR(65535) COLLATE "C",
+  directory VARCHAR(65535),
+  meta bytea,
+  PRIMARY KEY (dirhash, name)
+);
+ALTER TABLE filemeta
+  ALTER COLUMN name TYPE VARCHAR(65535) COLLATE "C";
+GRANT ALL PRIVILEGES ON TABLE filemeta TO "${SEAWEEDFS_POSTGRES_USER:-seaweedfs}";
 SQL
 SCRIPT
 
@@ -395,6 +462,9 @@ ensure_postgres_databases() {
   local forgejo_db="${FORGEJO_POSTGRES_DATABASE:-forgejo}"
   local forgejo_user="${FORGEJO_POSTGRES_USER:-forgejo}"
   local forgejo_password="${FORGEJO_POSTGRES_PASSWORD}"
+  local seaweedfs_db="${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}"
+  local seaweedfs_user="${SEAWEEDFS_POSTGRES_USER:-seaweedfs}"
+  local seaweedfs_password="${SEAWEEDFS_POSTGRES_PASSWORD}"
 
   docker exec -i "${container_id}" psql \
     -q \
@@ -426,7 +496,42 @@ WHERE NOT EXISTS (
 
 GRANT ALL PRIVILEGES ON DATABASE "$(sql_identifier "${forgejo_db}")" TO "$(sql_identifier "${forgejo_user}")";
 
+DO
+\$do\$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_roles WHERE rolname = '$(sql_literal "${seaweedfs_user}")'
+  ) THEN
+    CREATE ROLE "$(sql_identifier "${seaweedfs_user}")" LOGIN PASSWORD '$(sql_literal "${seaweedfs_password}")';
+  END IF;
+END
+\$do\$;
+
+SELECT 'CREATE DATABASE "$(sql_identifier "${seaweedfs_db}")" OWNER "$(sql_identifier "${seaweedfs_user}")"'
+WHERE NOT EXISTS (
+  SELECT FROM pg_database WHERE datname = '$(sql_literal "${seaweedfs_db}")'
+)\\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE "$(sql_identifier "${seaweedfs_db}")" TO "$(sql_identifier "${seaweedfs_user}")";
+
 SELECT pg_advisory_unlock(77007001);
+SQL
+
+  docker exec -i "${container_id}" psql \
+    -q \
+    -v ON_ERROR_STOP=1 \
+    --username "${postgres_user}" \
+    --dbname "${seaweedfs_db}" >/dev/null <<SQL
+CREATE TABLE IF NOT EXISTS filemeta (
+  dirhash BIGINT,
+  name VARCHAR(65535) COLLATE "C",
+  directory VARCHAR(65535),
+  meta bytea,
+  PRIMARY KEY (dirhash, name)
+);
+ALTER TABLE filemeta
+  ALTER COLUMN name TYPE VARCHAR(65535) COLLATE "C";
+GRANT ALL PRIVILEGES ON TABLE filemeta TO "$(sql_identifier "${seaweedfs_user}")";
 SQL
 
   echo "PostgreSQL databases are ready."
@@ -438,6 +543,117 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 require_command docker "On Ubuntu, install it with: sudo apt install -y docker.io docker-compose-v2 docker-buildx"
+require_command jq "On Ubuntu, install it with: sudo apt install -y jq"
+
+manager_service_name() {
+  printf '%s_manager' "${STACK_NAME}"
+}
+
+wait_for_manager_http() {
+  local deadline=$((SECONDS + MANAGER_READY_TIMEOUT_SECONDS))
+
+  while (( SECONDS < deadline )); do
+    if docker run --rm \
+      --network "${STACK_NAME}_internal" \
+      curlimages/curl:8.11.1 \
+      -fsS "http://manager/health" >/dev/null 2>&1; then
+      return
+    fi
+
+    sleep 3
+  done
+
+  cat >&2 <<MSG
+Manager service exists, but it did not become ready within ${MANAGER_READY_TIMEOUT_SECONDS}s.
+
+Check:
+  docker service ps $(manager_service_name)
+  docker service logs $(manager_service_name)
+MSG
+  exit 1
+}
+
+bootstrap_platform_storage() {
+  local response
+  local bucket
+  local user
+  local access_key
+  local secret_key
+
+  if ! docker service inspect "$(manager_service_name)" >/dev/null 2>&1; then
+    cat >&2 <<MSG
+Manager is not deployed yet, so web storage credentials cannot be bootstrapped.
+
+Run:
+  make up
+
+Then re-run:
+  ./install.sh --bootstrap-storage-only
+MSG
+    return 2
+  fi
+
+  bucket="$(env_value env/30-platform.env STORAGE_S3_BUCKET)"
+  bucket="${bucket:-os7-web}"
+  user="${STORAGE_WEB_IAM_USER:-web-platform}"
+
+  wait_for_manager_http
+
+  echo "Bootstrapping shared web SeaweedFS bucket ${bucket} through manager."
+
+  response="$(
+    docker run --rm \
+      --network "${STACK_NAME}_internal" \
+      curlimages/curl:8.11.1 \
+      -fsS \
+      -X POST "http://manager/storage/platform-bucket" \
+      -H 'Accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d "{\"bucket\":\"${bucket}\",\"user\":\"${user}\"}"
+  )"
+
+  access_key="$(jq -r '.accessKeyId // empty' <<<"${response}")"
+  secret_key="$(jq -r '.secretAccessKey // empty' <<<"${response}")"
+
+  if [[ -z "${access_key}" || -z "${secret_key}" ]]; then
+    echo "Manager did not return web SeaweedFS credentials." >&2
+    echo "${response}" >&2
+    exit 1
+  fi
+
+  set_env_value env/30-platform.env STORAGE_S3_BUCKET "${bucket}"
+  set_env_value env/30-platform.env STORAGE_S3_ACCESS_KEY_ID "${access_key}"
+  set_env_value env/30-platform.env STORAGE_S3_SECRET_ACCESS_KEY "${secret_key}"
+
+  echo "Stored scoped web SeaweedFS credentials in env/30-platform.env."
+}
+
+if [[ "${1:-}" == "--bootstrap-storage-only" ]]; then
+  for file in ${ENV_FILES}; do
+    if [[ -f "${file}" ]]; then
+      continue
+    fi
+
+    if [[ -f "${file}.example" ]]; then
+      cp "${file}.example" "${file}"
+      echo "Created ${file} from ${file}.example"
+      continue
+    fi
+
+    echo "Missing required env file: ${file}" >&2
+    exit 1
+  done
+
+  set -a
+  for file in ${ENV_FILES}; do
+    # shellcheck disable=SC1090
+    . "./${file}"
+  done
+  set +a
+
+  bootstrap_platform_storage
+  exit 0
+fi
 
 ensure_deploy_user
 
@@ -481,10 +697,13 @@ done
 
 STACK_NAME="${STACK_NAME}" docker stack config "${stack_args[@]}" >/dev/null
 
+bootstrap_platform_storage || true
+
 cat <<DONE
 Deploy configuration is installed and valid.
 
 Next:
   1. Edit secrets/domains in deploy/env/*.env.
   2. Run: make up
+  3. If web storage was bootstrapped after manager started, run: make up
 DONE
