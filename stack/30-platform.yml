@@ -109,6 +109,8 @@ services:
       OAUTH_INTERNAL_BASE_URL: ${OAUTH_INTERNAL_BASE_URL}
       APP_READY_BASE_URL: ${APP_READY_BASE_URL:-http://traefik}
       REDIS_URL: redis://redis:6379
+      BROWSERLESS_URL: ${BROWSERLESS_URL:-http://browserless:3000}
+      BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
       STORAGE_S3_ENDPOINT: ${STORAGE_S3_ENDPOINT:-http://seaweedfs:8333}
       STORAGE_S3_INTERNAL_ENDPOINT: ${STORAGE_S3_INTERNAL_ENDPOINT:-http://seaweedfs:8333}
       STORAGE_S3_REGION: ${STORAGE_S3_REGION:-us-east-1}
@@ -180,6 +182,15 @@ services:
       WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS: ${WORKER_GRACEFUL_SHUTDOWN_TIMEOUT_MS:-540000}
       APP_READY_BASE_URL: ${APP_READY_BASE_URL:-http://traefik}
       DEPLOY_APP_READY_TIMEOUT_MS: ${DEPLOY_APP_READY_TIMEOUT_MS:-900000}
+      BROWSERLESS_URL: ${BROWSERLESS_URL:-http://browserless:3000}
+      BROWSERLESS_TOKEN: ${BROWSERLESS_TOKEN}
+      HUB_ARTIFACT_SCREENSHOT_WORKER_CONCURRENCY: ${HUB_ARTIFACT_SCREENSHOT_WORKER_CONCURRENCY:-2}
+      HUB_URL_SCREENSHOT_TIMEOUT_MS: ${HUB_URL_SCREENSHOT_TIMEOUT_MS:-60000}
+      HUB_URL_SCREENSHOT_WAIT_MS: ${HUB_URL_SCREENSHOT_WAIT_MS:-1000}
+      HUB_PDF_THUMBNAIL_TIMEOUT_MS: ${HUB_PDF_THUMBNAIL_TIMEOUT_MS:-60000}
+      HUB_PDF_THUMBNAIL_WAIT_MS: ${HUB_PDF_THUMBNAIL_WAIT_MS:-1000}
+      HUB_PDF_THUMBNAIL_VIEWPORT_WIDTH: ${HUB_PDF_THUMBNAIL_VIEWPORT_WIDTH:-900}
+      HUB_PDF_THUMBNAIL_VIEWPORT_HEIGHT: ${HUB_PDF_THUMBNAIL_VIEWPORT_HEIGHT:-1200}
       FORGEJO_URL: ${FORGEJO_URL:-http://forgejo}
       FORGEJO_GIT_URL: ${FORGEJO_GIT_URL:-http://forgejo}
       FORGEJO_ADMIN_USER: ${FORGEJO_ADMIN_USER:-root}
@@ -238,3 +249,30 @@ services:
         limits:
           cpus: "${AGENT_CPUS:-1.00}"
           memory: ${AGENT_MEMORY_LIMIT:-1024m}
+
+  browserless:
+    image: ${BROWSERLESS_IMAGE:-ghcr.io/browserless/chromium}:${BROWSERLESS_IMAGE_TAG:-v2.52.2}
+    environment:
+      TOKEN: ${BROWSERLESS_TOKEN}
+      HOST: 0.0.0.0
+      TIMEOUT: ${BROWSERLESS_TIMEOUT_MS:-60000}
+      CONCURRENT: ${BROWSERLESS_CONCURRENT:-2}
+    networks:
+      - internal
+    deploy:
+      replicas: 1
+      update_config:
+        order: start-first
+        parallelism: 1
+        failure_action: rollback
+        monitor: 30s
+      rollback_config:
+        order: start-first
+        parallelism: 1
+        monitor: 30s
+      restart_policy:
+        condition: any
+      resources:
+        limits:
+          cpus: "${BROWSERLESS_CPUS:-1.00}"
+          memory: ${BROWSERLESS_MEMORY_LIMIT:-1536m}
