@@ -90,6 +90,10 @@ services:
     image: ${WEB_IMAGE:-ghcr.io/llm-to-apps/web}:${WEB_IMAGE_TAG:-latest}
     environment:
       AUTH_SECRET: ${AUTH_SECRET}
+      GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
       MANAGER_URL: http://manager
       AGENT_URL: http://agent
@@ -158,6 +162,10 @@ services:
       disable: true
     environment:
       AUTH_SECRET: ${AUTH_SECRET}
+      GOOGLE_OAUTH_ENABLED: ${GOOGLE_OAUTH_ENABLED:-false}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
       DATABASE_URL: postgresql://${POSTGRES_USER:-os7}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DATABASE:-os7_platform}
       MANAGER_URL: http://manager
       AGENT_URL: http://agent
