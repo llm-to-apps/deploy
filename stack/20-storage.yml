@@ -88,6 +88,7 @@ services:
           -volume.port=8080 \
           -volume.port.grpc=18080 \
           -volume.index=leveldbMedium \
+          -volume.max=${SEAWEEDFS_VOLUME_MAX:-128} \
           -filer \
           -filer.port=8888 \
           -filer.port.grpc=18888 \
