@@ -270,7 +270,7 @@ services:
     image: ${CANVAS_IMAGE:-ghcr.io/llm-to-apps/canvas}:${CANVAS_IMAGE_TAG:-latest}
     environment:
       PORT: "80"
-      CANVAS_PUBLIC_BASE_URL: ${CANVAS_PUBLIC_BASE_URL:-https://${CANVAS_DOMAIN}}
+      CANVAS_PUBLIC_BASE_URL: ${CANVAS_PUBLIC_BASE_URL:-https://canvas.os7.dev}
       CANVAS_SCRIPT_SRC: "${CANVAS_SCRIPT_SRC:-'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com https://cdn.tailwindcss.com}"
       CANVAS_STYLE_SRC: "${CANVAS_STYLE_SRC:-'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com}"
       CANVAS_CONNECT_SRC: "${CANVAS_CONNECT_SRC:-'none'}"
