@@ -186,7 +186,9 @@ generate_secrets() {
   ensure_secret env/20-storage.env SEAWEEDFS_S3_ACCESS_KEY
   ensure_secret env/20-storage.env SEAWEEDFS_S3_SECRET_KEY
   ensure_base64_secret env/20-storage.env SEAWEEDFS_IAM_SIGNING_KEY
+  ensure_secret env/10-db.env CANVAS_POSTGRES_PASSWORD
   ensure_secret env/30-platform.env AUTH_SECRET
+  ensure_secret env/30-platform.env CANVAS_INTERNAL_TOKEN
 }
 
 ensure_postgres_init_script() {
@@ -244,6 +246,24 @@ WHERE NOT EXISTS (
 )\gexec
 
 GRANT ALL PRIVILEGES ON DATABASE "${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}" TO "${SEAWEEDFS_POSTGRES_USER:-seaweedfs}";
+
+DO
+\$do\$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_roles WHERE rolname = '${CANVAS_POSTGRES_USER:-canvas}'
+  ) THEN
+    CREATE ROLE "${CANVAS_POSTGRES_USER:-canvas}" LOGIN PASSWORD '${CANVAS_POSTGRES_PASSWORD}';
+  END IF;
+END
+\$do\$;
+
+SELECT 'CREATE DATABASE "${CANVAS_POSTGRES_DATABASE:-canvas}" OWNER "${CANVAS_POSTGRES_USER:-canvas}"'
+WHERE NOT EXISTS (
+  SELECT FROM pg_database WHERE datname = '${CANVAS_POSTGRES_DATABASE:-canvas}'
+)\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE "${CANVAS_POSTGRES_DATABASE:-canvas}" TO "${CANVAS_POSTGRES_USER:-canvas}";
 SQL
 
 psql -v ON_ERROR_STOP=1 --username "${POSTGRES_USER}" --dbname "${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}" <<SQL
@@ -465,6 +485,9 @@ ensure_postgres_databases() {
   local seaweedfs_db="${SEAWEEDFS_POSTGRES_DATABASE:-seaweedfs}"
   local seaweedfs_user="${SEAWEEDFS_POSTGRES_USER:-seaweedfs}"
   local seaweedfs_password="${SEAWEEDFS_POSTGRES_PASSWORD}"
+  local canvas_db="${CANVAS_POSTGRES_DATABASE:-canvas}"
+  local canvas_user="${CANVAS_POSTGRES_USER:-canvas}"
+  local canvas_password="${CANVAS_POSTGRES_PASSWORD}"
 
   docker exec -i "${container_id}" psql \
     -q \
@@ -513,6 +536,24 @@ WHERE NOT EXISTS (
 )\\gexec
 
 GRANT ALL PRIVILEGES ON DATABASE "$(sql_identifier "${seaweedfs_db}")" TO "$(sql_identifier "${seaweedfs_user}")";
+
+DO
+\$do\$
+BEGIN
+  IF NOT EXISTS (
+    SELECT FROM pg_catalog.pg_roles WHERE rolname = '$(sql_literal "${canvas_user}")'
+  ) THEN
+    CREATE ROLE "$(sql_identifier "${canvas_user}")" LOGIN PASSWORD '$(sql_literal "${canvas_password}")';
+  END IF;
+END
+\$do\$;
+
+SELECT 'CREATE DATABASE "$(sql_identifier "${canvas_db}")" OWNER "$(sql_identifier "${canvas_user}")"'
+WHERE NOT EXISTS (
+  SELECT FROM pg_database WHERE datname = '$(sql_literal "${canvas_db}")'
+)\\gexec
+
+GRANT ALL PRIVILEGES ON DATABASE "$(sql_identifier "${canvas_db}")" TO "$(sql_identifier "${canvas_user}")";
 
 SELECT pg_advisory_unlock(77007001);
 SQL
@@ -574,15 +615,9 @@ MSG
 }
 
 bootstrap_platform_storage() {
-  local response
-  local bucket
-  local user
-  local access_key
-  local secret_key
-
   if ! docker service inspect "$(manager_service_name)" >/dev/null 2>&1; then
     cat >&2 <<MSG
-Manager is not deployed yet, so web storage credentials cannot be bootstrapped.
+Manager is not deployed yet, so storage credentials cannot be bootstrapped.
 
 Run:
   make up
@@ -593,13 +628,42 @@ MSG
     return 2
   fi
 
-  bucket="$(env_value env/30-platform.env STORAGE_S3_BUCKET)"
-  bucket="${bucket:-os7-web}"
-  user="${STORAGE_WEB_IAM_USER:-web-platform}"
-
   wait_for_manager_http
 
-  echo "Bootstrapping shared web SeaweedFS bucket ${bucket} through manager."
+  bootstrap_storage_bucket \
+    "web" \
+    "$(env_value env/30-platform.env STORAGE_S3_BUCKET)" \
+    "${STORAGE_WEB_IAM_USER:-web-platform}" \
+    "STORAGE_S3_BUCKET" \
+    "STORAGE_S3_ACCESS_KEY_ID" \
+    "STORAGE_S3_SECRET_ACCESS_KEY" \
+    "os7-web"
+
+  bootstrap_storage_bucket \
+    "Canvas" \
+    "$(env_value env/30-platform.env CANVAS_S3_BUCKET)" \
+    "${STORAGE_CANVAS_IAM_USER:-canvas-runtime}" \
+    "CANVAS_S3_BUCKET" \
+    "CANVAS_S3_ACCESS_KEY_ID" \
+    "CANVAS_S3_SECRET_ACCESS_KEY" \
+    "os7-canvas"
+}
+
+bootstrap_storage_bucket() {
+  local label="$1"
+  local bucket="$2"
+  local user="$3"
+  local bucket_env_key="$4"
+  local access_env_key="$5"
+  local secret_env_key="$6"
+  local fallback_bucket="$7"
+  local response
+  local access_key
+  local secret_key
+
+  bucket="${bucket:-${fallback_bucket}}"
+
+  echo "Bootstrapping ${label} SeaweedFS bucket ${bucket} through manager."
 
   response="$(
     docker run --rm \
@@ -616,16 +680,16 @@ MSG
   secret_key="$(jq -r '.secretAccessKey // empty' <<<"${response}")"
 
   if [[ -z "${access_key}" || -z "${secret_key}" ]]; then
-    echo "Manager did not return web SeaweedFS credentials." >&2
+    echo "Manager did not return ${label} SeaweedFS credentials." >&2
     echo "${response}" >&2
     exit 1
   fi
 
-  set_env_value env/30-platform.env STORAGE_S3_BUCKET "${bucket}"
-  set_env_value env/30-platform.env STORAGE_S3_ACCESS_KEY_ID "${access_key}"
-  set_env_value env/30-platform.env STORAGE_S3_SECRET_ACCESS_KEY "${secret_key}"
+  set_env_value env/30-platform.env "${bucket_env_key}" "${bucket}"
+  set_env_value env/30-platform.env "${access_env_key}" "${access_key}"
+  set_env_value env/30-platform.env "${secret_env_key}" "${secret_key}"
 
-  echo "Stored scoped web SeaweedFS credentials in env/30-platform.env."
+  echo "Stored scoped ${label} SeaweedFS credentials in env/30-platform.env."
 }
 
 if [[ "${1:-}" == "--bootstrap-storage-only" ]]; then

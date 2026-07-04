@@ -17,6 +17,7 @@ MANAGER_REPO="${MANAGER_REPO:-${GITHUB_OWNER}/manager}"
 WEB_REPO="${WEB_REPO:-${GITHUB_OWNER}/web}"
 SITE_REPO="${SITE_REPO:-${GITHUB_OWNER}/site}"
 AGENT_REPO="${AGENT_REPO:-${GITHUB_OWNER}/agent}"
+CANVAS_REPO="${CANVAS_REPO:-${GITHUB_OWNER}/canvas}"
 
 DRY_RUN=false
 
@@ -37,6 +38,7 @@ Options:
   --web-repo OWNER/REPO
   --site-repo OWNER/REPO
   --agent-repo OWNER/REPO
+  --canvas-repo OWNER/REPO
   --skip-verify           Do not verify that resolved tags exist in GHCR.
   --dry-run               Print resolved tags without changing files.
   -h, --help              Show this help.
@@ -149,6 +151,7 @@ while [[ $# -gt 0 ]]; do
       WEB_REPO="${GITHUB_OWNER}/web"
       SITE_REPO="${GITHUB_OWNER}/site"
       AGENT_REPO="${GITHUB_OWNER}/agent"
+      CANVAS_REPO="${GITHUB_OWNER}/canvas"
       GHCR_OWNER="${GITHUB_OWNER}"
       shift 2
       ;;
@@ -176,6 +179,10 @@ while [[ $# -gt 0 ]]; do
       AGENT_REPO="$2"
       shift 2
       ;;
+    --canvas-repo)
+      CANVAS_REPO="$2"
+      shift 2
+      ;;
     --skip-verify)
       VERIFY_IMAGE_TAGS=false
       shift
@@ -200,12 +207,14 @@ manager_tag="$(resolve_tag "manager" "${MANAGER_REPO}" "manager")"
 web_tag="$(resolve_tag "web" "${WEB_REPO}" "web")"
 site_tag="$(resolve_tag "site" "${SITE_REPO}" "site")"
 agent_tag="$(resolve_tag "agent" "${AGENT_REPO}" "agent")"
+canvas_tag="$(resolve_tag "canvas" "${CANVAS_REPO}" "canvas")"
 
 if [[ "${DRY_RUN}" == "true" ]]; then
   printf 'MANAGER_IMAGE_TAG=%s\n' "${manager_tag}"
   printf 'WEB_IMAGE_TAG=%s\n' "${web_tag}"
   printf 'SITE_IMAGE_TAG=%s\n' "${site_tag}"
   printf 'AGENT_IMAGE_TAG=%s\n' "${agent_tag}"
+  printf 'CANVAS_IMAGE_TAG=%s\n' "${canvas_tag}"
   exit 0
 fi
 
@@ -221,6 +230,7 @@ set_env_value "${ENV_FILE}" "MANAGER_IMAGE_TAG" "${manager_tag}"
 set_env_value "${ENV_FILE}" "WEB_IMAGE_TAG" "${web_tag}"
 set_env_value "${ENV_FILE}" "SITE_IMAGE_TAG" "${site_tag}"
 set_env_value "${ENV_FILE}" "AGENT_IMAGE_TAG" "${agent_tag}"
+set_env_value "${ENV_FILE}" "CANVAS_IMAGE_TAG" "${canvas_tag}"
 
 rm -f "${ENV_FILE}.bak"
 
@@ -230,4 +240,5 @@ Updated ${ENV_FILE}:
   WEB_IMAGE_TAG=${web_tag}
   SITE_IMAGE_TAG=${site_tag}
   AGENT_IMAGE_TAG=${agent_tag}
+  CANVAS_IMAGE_TAG=${canvas_tag}
 RESULT

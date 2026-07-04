@@ -45,7 +45,7 @@ The production stack is Docker Swarm, assembled from:
 - `stack/00-foundation.yml`: networks and volumes
 - `stack/10-db.yml`: PostgreSQL, MySQL, Redis
 - `stack/20-storage.yml`: Forgejo, SeaweedFS
-- `stack/30-platform.yml`: Traefik, site, manager, web, worker, agent
+- `stack/30-platform.yml`: Traefik, site, manager, web, worker, agent, canvas
 
 Environment files:
 

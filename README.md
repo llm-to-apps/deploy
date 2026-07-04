@@ -7,14 +7,14 @@ The stack is assembled from component files in `deploy/stack`:
 - `00-foundation.yml` for shared networks and volumes
 - `10-db.yml` for PostgreSQL, MySQL, and Redis
 - `20-storage.yml` for Forgejo-backed Git storage and SeaweedFS object storage
-- `30-platform.yml` for Traefik, site, manager, web, worker, and agent
+- `30-platform.yml` for Traefik, site, manager, web, worker, agent, and canvas
 
 Environment is split into component files in `deploy/env`:
 
 - `release.env` for image names and tags shared by the whole release
 - `10-db.env` for PostgreSQL, MySQL, Redis, and their resources
 - `20-storage.env` for Forgejo, SeaweedFS, storage secrets, metadata database settings, and resources
-- `30-platform.env` for public domains, auth, Traefik, site, manager, web, worker, agent, model provider settings, and their resources
+- `30-platform.env` for public domains, auth, Traefik, site, manager, web, worker, agent, canvas, model provider settings, and their resources
 
 Together they start:
 
@@ -23,6 +23,7 @@ Together they start:
 - OS7 manager
 - OS7 web and worker
 - OS7 agent
+- OS7 canvas runtime
 - PostgreSQL for platform data and Mastra memory
 - MySQL for customer application databases
 - Redis for queues
