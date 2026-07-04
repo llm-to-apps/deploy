@@ -3,6 +3,7 @@ IMAGE_ENV_FILE ?= env/release.env
 STACK_FILES ?= stack/00-foundation.yml stack/10-db.yml stack/20-storage.yml stack/30-platform.yml
 INIT_STACK_FILES ?= stack/00-foundation.yml stack/10-db.yml
 DOCKER_COMPOSE ?= docker compose
+PULL_PLATFORM ?= linux/amd64
 STACK_NAME ?= os7
 STACK_DEPLOY_FILES := $(foreach file,$(STACK_FILES),-c $(file))
 INIT_STACK_DEPLOY_FILES := $(foreach file,$(INIT_STACK_FILES),-c $(file))
@@ -14,7 +15,7 @@ LOAD_ENV = set -a; for file in $(ENV_FILES); do . ./$$file; done; set +a
 update: ensure-env
 	./update.sh --env-file $(IMAGE_ENV_FILE) --env-example-file $(IMAGE_ENV_FILE).example
 	@$(LOAD_ENV); \
-		$(DOCKER_COMPOSE) $(COMPOSE_FILES) pull manager site web worker agent canvas
+		DOCKER_DEFAULT_PLATFORM="$(PULL_PLATFORM)" $(DOCKER_COMPOSE) $(COMPOSE_FILES) pull manager site web worker agent canvas
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
 		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
 
@@ -27,7 +28,7 @@ init: ensure-env
 
 pull: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
-		$(DOCKER_COMPOSE) $(COMPOSE_FILES) pull
+		DOCKER_DEFAULT_PLATFORM="$(PULL_PLATFORM)" $(DOCKER_COMPOSE) $(COMPOSE_FILES) pull
 
 up: ensure-env
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
