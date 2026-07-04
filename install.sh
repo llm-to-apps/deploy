@@ -18,12 +18,16 @@ FORGEJO_BOOTSTRAP_SCRIPT="${FORGEJO_BOOTSTRAP_SCRIPT:-${DEPLOY_ROOT}/docker/forg
 
 usage() {
   cat <<USAGE
-Usage: ./install.sh [--bootstrap-storage-only]
+Usage: ./install.sh [--bootstrap-storage-only|--ensure-env-only]
 
 Create missing deploy env files from examples, ensure Docker Swarm is active,
 generate local secrets when placeholders are still present, require initialized
 database services, create missing databases, and validate the production stack
 configuration.
+
+With --ensure-env-only, create missing env files from examples, append newly
+introduced keys from examples, and generate missing local secrets without
+touching Docker, PostgreSQL, or object storage.
 
 With --bootstrap-storage-only, call the internal manager API to create the
 shared web SeaweedFS bucket and scoped credentials, then write them to
@@ -173,6 +177,50 @@ ensure_base64_secret() {
 
   set_env_value "${file}" "${key}" "$(random_base64_secret)"
   echo "Generated ${key} in ${file}"
+}
+
+ensure_env_defaults() {
+  local file="$1"
+  local example="${file}.example"
+  local line
+  local key
+
+  if [[ ! -f "${example}" ]]; then
+    return
+  fi
+
+  while IFS= read -r line || [[ -n "${line}" ]]; do
+    if [[ ! "${line}" =~ ^[A-Za-z_][A-Za-z0-9_]*= ]]; then
+      continue
+    fi
+
+    key="${line%%=*}"
+
+    if grep -qE "^${key}=" "${file}"; then
+      continue
+    fi
+
+    printf '\n%s\n' "${line}" >> "${file}"
+    echo "Added ${key} to ${file} from ${example}"
+  done < "${example}"
+}
+
+ensure_env_files() {
+  local file
+
+  for file in ${ENV_FILES}; do
+    if [[ ! -f "${file}" ]]; then
+      if [[ -f "${file}.example" ]]; then
+        cp "${file}.example" "${file}"
+        echo "Created ${file} from ${file}.example"
+      else
+        echo "Missing required env file: ${file}" >&2
+        exit 1
+      fi
+    fi
+
+    ensure_env_defaults "${file}"
+  done
 }
 
 generate_secrets() {
@@ -692,21 +740,15 @@ bootstrap_storage_bucket() {
   echo "Stored scoped ${label} SeaweedFS credentials in env/30-platform.env."
 }
 
+if [[ "${1:-}" == "--ensure-env-only" ]]; then
+  ensure_env_files
+  generate_secrets
+  echo "Deploy env files are present and contain current defaults."
+  exit 0
+fi
+
 if [[ "${1:-}" == "--bootstrap-storage-only" ]]; then
-  for file in ${ENV_FILES}; do
-    if [[ -f "${file}" ]]; then
-      continue
-    fi
-
-    if [[ -f "${file}.example" ]]; then
-      cp "${file}.example" "${file}"
-      echo "Created ${file} from ${file}.example"
-      continue
-    fi
-
-    echo "Missing required env file: ${file}" >&2
-    exit 1
-  done
+  ensure_env_files
 
   set -a
   for file in ${ENV_FILES}; do
@@ -726,20 +768,7 @@ if [[ "${swarm_state}" != "active" ]]; then
   docker swarm init >/dev/null
 fi
 
-for file in ${ENV_FILES}; do
-  if [[ -f "${file}" ]]; then
-    continue
-  fi
-
-  if [[ -f "${file}.example" ]]; then
-    cp "${file}.example" "${file}"
-    echo "Created ${file} from ${file}.example"
-    continue
-  fi
-
-  echo "Missing required env file: ${file}" >&2
-  exit 1
-done
+ensure_env_files
 
 generate_secrets
 ensure_postgres_init_script

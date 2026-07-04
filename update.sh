@@ -2,10 +2,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-ENV_FILE="${ENV_FILE:-${REPO_ROOT}/env/release.env}"
-ENV_EXAMPLE_FILE="${ENV_EXAMPLE_FILE:-${REPO_ROOT}/env/release.env.example}"
+ENV_FILE="${ENV_FILE:-${SCRIPT_DIR}/env/release.env}"
+ENV_EXAMPLE_FILE="${ENV_EXAMPLE_FILE:-${SCRIPT_DIR}/env/release.env.example}"
 GITHUB_API_URL="${GITHUB_API_URL:-https://api.github.com}"
 GITHUB_OWNER="${GITHUB_OWNER:-llm-to-apps}"
 GHCR_OWNER="${GHCR_OWNER:-${GITHUB_OWNER}}"
