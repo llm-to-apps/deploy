@@ -14,6 +14,7 @@ LOAD_ENV = set -a; for file in $(ENV_FILES); do . ./$$file; done; set +a
 
 update: ensure-env
 	./update.sh --env-file $(IMAGE_ENV_FILE) --env-example-file $(IMAGE_ENV_FILE).example
+	./install.sh --sync-db-only
 	@$(LOAD_ENV); \
 		DOCKER_DEFAULT_PLATFORM="$(PULL_PLATFORM)" $(DOCKER_COMPOSE) $(COMPOSE_FILES) pull manager site web worker agent canvas
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
@@ -34,6 +35,7 @@ pull: ensure-env
 		DOCKER_DEFAULT_PLATFORM="$(PULL_PLATFORM)" $(DOCKER_COMPOSE) $(COMPOSE_FILES) pull
 
 up: ensure-env
+	./install.sh --sync-db-only
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
 		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
 	./install.sh --bootstrap-storage-only

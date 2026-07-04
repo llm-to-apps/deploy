@@ -18,7 +18,7 @@ FORGEJO_BOOTSTRAP_SCRIPT="${FORGEJO_BOOTSTRAP_SCRIPT:-${DEPLOY_ROOT}/docker/forg
 
 usage() {
   cat <<USAGE
-Usage: ./install.sh [--bootstrap-storage-only|--ensure-env-only]
+Usage: ./install.sh [--bootstrap-storage-only|--ensure-env-only|--sync-db-only]
 
 Create missing deploy env files from examples, ensure Docker Swarm is active,
 generate local secrets when placeholders are still present, require initialized
@@ -28,6 +28,10 @@ configuration.
 With --ensure-env-only, create missing env files from examples, append newly
 introduced keys from examples, and generate missing local secrets without
 touching Docker, PostgreSQL, or object storage.
+
+With --sync-db-only, create missing env files from examples, append newly
+introduced keys, generate missing local secrets, and synchronize PostgreSQL
+roles/databases without touching object storage or redeploying the stack.
 
 With --bootstrap-storage-only, call the internal manager API to create the
 shared web SeaweedFS bucket and scoped credentials, then write them to
@@ -560,6 +564,8 @@ BEGIN
 END
 \$do\$;
 
+ALTER ROLE "$(sql_identifier "${forgejo_user}")" WITH LOGIN PASSWORD '$(sql_literal "${forgejo_password}")';
+
 SELECT 'CREATE DATABASE "$(sql_identifier "${forgejo_db}")" OWNER "$(sql_identifier "${forgejo_user}")"'
 WHERE NOT EXISTS (
   SELECT FROM pg_database WHERE datname = '$(sql_literal "${forgejo_db}")'
@@ -578,6 +584,8 @@ BEGIN
 END
 \$do\$;
 
+ALTER ROLE "$(sql_identifier "${seaweedfs_user}")" WITH LOGIN PASSWORD '$(sql_literal "${seaweedfs_password}")';
+
 SELECT 'CREATE DATABASE "$(sql_identifier "${seaweedfs_db}")" OWNER "$(sql_identifier "${seaweedfs_user}")"'
 WHERE NOT EXISTS (
   SELECT FROM pg_database WHERE datname = '$(sql_literal "${seaweedfs_db}")'
@@ -595,6 +603,8 @@ BEGIN
   END IF;
 END
 \$do\$;
+
+ALTER ROLE "$(sql_identifier "${canvas_user}")" WITH LOGIN PASSWORD '$(sql_literal "${canvas_password}")';
 
 SELECT 'CREATE DATABASE "$(sql_identifier "${canvas_db}")" OWNER "$(sql_identifier "${canvas_user}")"'
 WHERE NOT EXISTS (
@@ -744,6 +754,21 @@ if [[ "${1:-}" == "--ensure-env-only" ]]; then
   ensure_env_files
   generate_secrets
   echo "Deploy env files are present and contain current defaults."
+  exit 0
+fi
+
+if [[ "${1:-}" == "--sync-db-only" ]]; then
+  ensure_env_files
+  generate_secrets
+
+  set -a
+  for file in ${ENV_FILES}; do
+    # shellcheck disable=SC1090
+    . "./${file}"
+  done
+  set +a
+
+  ensure_postgres_databases
   exit 0
 fi
 
