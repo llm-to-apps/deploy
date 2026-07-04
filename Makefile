@@ -18,6 +18,9 @@ update: ensure-env
 		DOCKER_DEFAULT_PLATFORM="$(PULL_PLATFORM)" $(DOCKER_COMPOSE) $(COMPOSE_FILES) pull manager site web worker agent canvas
 	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
 		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
+	./install.sh --bootstrap-storage-only
+	@$(LOAD_ENV); STACK_NAME="$(STACK_NAME)"; export STACK_NAME; \
+		docker stack deploy --with-registry-auth $(STACK_DEPLOY_FILES) $(STACK_NAME)
 
 install:
 	./install.sh
